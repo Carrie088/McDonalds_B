@@ -2,13 +2,12 @@
 //
 // • Jeden plik na uczestnika i wersję: zdarzenia/PUN_zdarzenia_I{interfejs}_{uczestnik}_{wersja}.csv
 //   (UTF-8 z BOM, separator średnik). Kolejne scenariusze S1, S2, S3 dopisują się do tego samego pliku.
-// • Dane uczestnika ustawia się w adresie strony, np.:
-//     http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA&scenariusz=S1
-//   (`scenariusz` = numer pierwszego scenariusza w tej sesji; brakujące wartości biorą się z DEFAULTS).
+// • Dane uczestnika wpisuje prowadzący w panelu przed uruchomieniem kiosku (src/admin/AdminSetup.jsx → configure()).
+//   Do tego czasu nic nie jest rejestrowane. Ctrl+Shift+A wraca do panelu (shutdown()).
 // • Scenariusz zaczyna się:
 //     – klawiszem prowadzącego 1, 2 lub 3 (start S1/S2/S3; kiosk wraca na ekran startowy), albo
 //     – pierwszym dotknięciem ekranu startowego, gdy żaden scenariusz nie trwa (kolejny numer).
-//   Kończy się potwierdzeniem zamówienia (sukces = 1) albo klawiszem Esc prowadzącego (przerwanie, sukces = 0).
+//   Kończy się potwierdzeniem zamówienia (sukces = 1) albo klawiszem 0 prowadzącego (przerwanie, sukces = 0).
 // • Plik zapisuje się (dopisuje nowe wiersze) przy końcu scenariusza, przy anulowaniu zamówienia przez
 //   uczestnika („Zacznij od nowa”, upływ limitu czasu) i przy zamknięciu strony.
 
@@ -25,14 +24,16 @@ const COLUMNS = [
 // Po tylu ms od wejścia na ekran mierzymy położenie ekranu i AOI (po animacji wejścia)
 const SETTLE_MS = 1000;
 
-const query = new URLSearchParams(window.location.search);
-const param = (k) => query.get(k) ?? DEFAULTS[k];
-const meta = { interfejs: param('interfejs'), uczestnik: param('uczestnik'), wersja: param('wersja'), kolejnosc: param('kolejnosc') };
-const FILE_NAME = `PUN_zdarzenia_I${String(meta.interfejs).padStart(2, '0')}_${meta.uczestnik}_${meta.wersja}.csv`;
+export { DEFAULTS };
+export const fileNameFor = (cfg) => `PUN_zdarzenia_I${String(cfg.interfejs).padStart(2, '0')}_${cfg.uczestnik}_${cfg.wersja}.csv`;
+
+let enabled = false; // rejestrujemy dopiero po zatwierdzeniu danych w panelu prowadzącego
+let meta = null;
+let fileName = '';
 
 let rows = []; // wiersze jeszcze niezapisane do pliku
 let scenario = ''; // bieżący (albo ostatni) scenariusz; puste przed pierwszym startem
-let nextScenario = Number(String(param('scenariusz')).replace(/\D/g, '')) || 1;
+let nextScenario = 1;
 let active = false; // czy trwa scenariusz
 let t0 = 0;
 
@@ -76,6 +77,7 @@ const deref = (el) => (el && 'current' in el ? el.current : el);
 const top = () => overlays[overlays.length - 1] ?? base;
 
 function push(fields, at = Date.now()) {
+  if (!enabled) return {};
   const row = {
     ...meta,
     scenariusz: scenario,
@@ -106,6 +108,7 @@ const measureAllNow = () => {
 // Wejście na ekran kończy wszystkie AOI poprzedniego ekranu. AOI nowego ekranu zgłaszamy po animacji wejścia,
 // z czasem ich pojawienia się (dla TTFF), tylko te, które nadal są widoczne (bez znikającej treści poprzedniego ekranu).
 function logScreen(screen, force = false) {
+  if (!enabled) return;
   const key = `${screen.name}|${screen.opis ?? ''}`;
   if (!force && key === lastEkran) return;
   lastEkran = key;
@@ -210,6 +213,7 @@ function closeOverlay(e) {
 let scanTimer = null;
 function scanAois() {
   scanTimer = null;
+  if (!enabled) return;
   const scope = (settle ? settle.scope() : null) ?? deref(top().el ?? top().root);
   if (!scope) return;
   const now = Date.now();
@@ -232,6 +236,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 // Zmiana położenia AOI (tryb dostępności, zmiana rozmiaru okna) → nowe wiersze aoi po zakończeniu animacji
 export function refreshAois(opis) {
+  if (!enabled) return;
   setTimeout(() => {
     completeSettle();
     tracked.forEach((info, el) => { if (el.isConnected) reportAoi(el, Date.now(), true, opis); });
@@ -247,6 +252,7 @@ window.addEventListener('resize', () => {
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
 function onPointerDown(e) {
+  if (!enabled) return;
   // Brak trwającego scenariusza + dotknięcie ekranu startowego → start kolejnego scenariusza
   if (!active && base.name === 'start' && overlays.length === 0) startScenario(nextScenario, 'start=dotkniecie');
   const el = e.target.closest?.(INTERACTIVE);
@@ -306,13 +312,14 @@ function csvField(v) {
 
 // Dopisuje niezapisane wiersze do pliku uczestnika (serwer Vite dodaje BOM i nagłówek przy nowym pliku)
 export function flush({ beacon = false } = {}) {
+  if (!enabled) return;
   completeSettle();
   measureAllNow();
   sortRows();
   if (rows.length === 0) return;
   const wiersze = rows.map((r) => COLUMNS.map((c) => csvField(r[c])).join(';')).join('\n') + '\n';
   rows = [];
-  const body = JSON.stringify({ nazwa: FILE_NAME, naglowek: COLUMNS.join(';'), wiersze });
+  const body = JSON.stringify({ nazwa: fileName, naglowek: COLUMNS.join(';'), wiersze });
   if (beacon && navigator.sendBeacon) {
     navigator.sendBeacon('/api/zdarzenia', new Blob([body], { type: 'application/json' }));
     return;
@@ -325,31 +332,62 @@ export function flush({ beacon = false } = {}) {
       console.warn('[zdarzenia] zapis na serwerze nieudany, pobieram plik', err);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob(['﻿', `${COLUMNS.join(';')}\n`, wiersze], { type: 'text/csv;charset=utf-8' }));
-      a.download = FILE_NAME;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(a.href);
     });
 }
 
-// ---------- start modułu ----------
-push({
-  zdarzenie: 'sesja',
-  ekran: '',
-  opis: `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`,
-});
+// ---------- sesja (panel prowadzącego) ----------
+// Start rejestrowania dla uczestnika: { interfejs, uczestnik, wersja, kolejnosc, scenariusz } → wiersz `sesja`
+export function configure(cfg) {
+  if (enabled) shutdown('panel');
+  meta = { interfejs: String(cfg.interfejs), uczestnik: cfg.uczestnik, wersja: cfg.wersja, kolejnosc: cfg.kolejnosc };
+  fileName = fileNameFor(cfg);
+  scenario = '';
+  nextScenario = Number(String(cfg.scenariusz).replace(/\D/g, '')) || 1;
+  active = false;
+  rows = [];
+  lastEkran = '';
+  tracked.clear();
+  pending.clear();
+  settle = null;
+  enabled = true;
+  push({
+    zdarzenie: 'sesja',
+    ekran: '',
+    opis: `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`,
+  });
+}
+
+// Koniec rejestrowania (powrót do panelu): trwający scenariusz zostaje przerwany, reszta trafia do pliku
+export function shutdown(reason = 'panel') {
+  if (!enabled) return;
+  if (active) endScenario({ sukces: 0, opis: `przerwano=${reason}` });
+  else flush();
+  enabled = false;
+  overlays.length = 0;
+  base = { name: 'start', opis: '', el: null };
+  if (settle) clearTimeout(settle.timer);
+  settle = null;
+  tracked.clear();
+}
+
+export const currentFileName = () => fileName;
 
 document.addEventListener('pointerdown', onPointerDown, true);
 
-// Klawisze prowadzącego: 1–3 = start scenariusza S1–S3, Esc = przerwanie bieżącego scenariusza
+// Klawisze prowadzącego: 1–3 = start scenariusza S1–S3, 0 (albo Esc poza pełnym ekranem) = przerwanie scenariusza
 window.addEventListener('keydown', (e) => {
+  if (!enabled || e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.target.closest?.('input, textarea')) return;
   if (/^[1-3]$/.test(e.key)) startScenario(Number(e.key), 'start=prowadzacy');
-  else if (e.key === 'Escape') endScenario({ sukces: 0, opis: 'przerwano=prowadzacy' });
+  else if (e.key === '0' || e.key === 'Escape') endScenario({ sukces: 0, opis: 'przerwano=prowadzacy' });
 });
 
 // Błąd JavaScript → wiersz blad z kodem JS
-window.addEventListener('error', (e) => logError('JS', e.message));
-window.addEventListener('unhandledrejection', (e) => logError('JS', String(e.reason?.message ?? e.reason)));
+window.addEventListener('error', (e) => { if (enabled) logError('JS', e.message); });
+window.addEventListener('unhandledrejection', (e) => { if (enabled) logError('JS', String(e.reason?.message ?? e.reason)); });
 
 // Zamknięcie lub odświeżenie strony → dopisujemy to, co zostało
 window.addEventListener('pagehide', () => flush({ beacon: true }));

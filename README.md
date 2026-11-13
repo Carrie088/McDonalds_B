@@ -28,13 +28,16 @@ Format zgodny ze słownikiem `PUN_slownik_zmiennych.csv` (plik PUN_zdarzenia):
 jeden plik na uczestnika i wersję, `zdarzenia/PUN_zdarzenia_I06_P01_A.csv`, UTF-8 z BOM, separator `;`.
 Scenariusze S1, S2, S3 dopisują się kolejno do tego samego pliku.
 
-Dane uczestnika ustawia się w adresie strony, np.:
-`http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA`
-(opcjonalnie `&scenariusz=S2` = od którego scenariusza zacząć; domyślne wartości w `src/logger.js` → `DEFAULTS`).
+Po uruchomieniu kiosku najpierw pokazuje się **panel prowadzącego**: numer interfejsu, kod uczestnika
+(P01–P99), wersja (A/B), kolejność (AB/BA) i pierwszy scenariusz. Panel pokazuje nazwę pliku, ostrzega,
+gdy plik tego uczestnika i wersji już istnieje (nowa sesja dopisze się na końcu), i sprawdza skalowanie systemu.
+„Uruchom kiosk” włącza pełny ekran i dopiero wtedy zaczyna się rejestrowanie.
+Pola można wypełnić z adresu, np. `?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA`.
 
 Sterowanie przez prowadzącego (klawiatura):
 - `1`, `2`, `3` – start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy),
-- `Esc` – przerwanie bieżącego scenariusza (`scenariusz_koniec`, sukces = 0).
+- `0` – przerwanie bieżącego scenariusza (`scenariusz_koniec`, sukces = 0),
+- `Ctrl` + `Shift` + `A` – powrót do panelu prowadzącego (zapisuje plik).
 
 Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego (kolejny numer),
 a kończy się potwierdzeniem zamówienia (sukces = 1). „Zacznij od nowa” i upływ limitu czasu
