@@ -68,7 +68,7 @@ const dict = {
     addProducts: 'Dodaj produkty',
     placeOrder: 'Złóż zamówienie',
     howPay: 'Jak chcesz zapłacić?',
-    payCard: 'Karta lub telefon',
+    payCard: 'Karta',
     payCardSub: 'Zapłać tutaj, przy kiosku',
     payCounter: 'Przy kasie',
     payCounterSub: 'Gotówka lub karta u obsługi',
