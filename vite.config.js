@@ -3,10 +3,11 @@ import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Folder na pliki CSV z rejestrem zdarzeń (jedno zamówienie = jeden plik)
+// Folder na pliki CSV z rejestrem zdarzeń (jeden plik na uczestnika i wersję)
 const EVENTS_DIR = path.resolve(__dirname, 'zdarzenia');
 
-// POST /api/zdarzenia  { nazwa: 'plik.csv', csv: '...' } → zapis do zdarzenia/<nazwa>
+// POST /api/zdarzenia  { nazwa, naglowek, wiersze } → dopisanie wierszy do zdarzenia/<nazwa>.
+// Nowy plik dostaje BOM (UTF-8 z BOM, jak w słowniku) i wiersz nagłówka.
 function eventLogWriter() {
   const handler = (req, res, next) => {
     if (req.url !== '/api/zdarzenia' || req.method !== 'POST') return next();
@@ -15,15 +16,15 @@ function eventLogWriter() {
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
       try {
-        const { nazwa, csv } = JSON.parse(body);
-        if (typeof csv !== 'string') throw new Error('brak danych csv');
+        const { nazwa, naglowek, wiersze } = JSON.parse(body);
+        if (typeof wiersze !== 'string' || typeof naglowek !== 'string') throw new Error('brak danych');
         // Tylko bezpieczne znaki w nazwie pliku, zawsze w folderze zdarzenia/
-        const base = path.basename(String(nazwa || 'zdarzenia.csv')).replace(/[^A-Za-z0-9_.-]/g, '_');
+        const base = path.basename(String(nazwa || 'PUN_zdarzenia.csv')).replace(/[^A-Za-z0-9_.-]/g, '_');
         const name = base.endsWith('.csv') ? base : `${base}.csv`;
         fs.mkdirSync(EVENTS_DIR, { recursive: true });
-        let file = path.join(EVENTS_DIR, name);
-        for (let i = 2; fs.existsSync(file); i++) file = path.join(EVENTS_DIR, name.replace(/\.csv$/, `_${i}.csv`));
-        fs.writeFileSync(file, csv, 'utf8');
+        const file = path.join(EVENTS_DIR, name);
+        if (!fs.existsSync(file)) fs.writeFileSync(file, `﻿${naglowek}\n`, 'utf8');
+        fs.appendFileSync(file, wiersze, 'utf8');
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ plik: path.relative(__dirname, file) }));
       } catch (err) {

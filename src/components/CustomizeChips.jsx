@@ -7,7 +7,7 @@ export default function CustomizeChips({ product, removed, setRemoved, added, se
   const toggle = (setList, id) => setList((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
 
   return (
-    <div className="pm-section" data-aoi="AOI_personalizacja">
+    <div className="pm-section">
       <h4>{t('without')}</h4>
       <div className="chip-row wrap">
         {product.ingredients.map((ing) => (

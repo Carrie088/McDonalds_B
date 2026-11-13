@@ -6,6 +6,10 @@ export const LANGS = [
 
 const dict = {
   pl: {
+    errPickSide: 'Wybierz dodatek, aby przejść dalej.',
+    errPickDrink: 'Wybierz napój, aby przejść dalej.',
+    errEmpty: 'Dodaj co najmniej jeden produkt do zamówienia.',
+    close: 'Zamknij',
     mealWord: 'McZestaw',
     stepMain: 'Kanapka',
     stepMainAlt: 'Danie',
@@ -93,6 +97,10 @@ const dict = {
     products: 'produkty',
   },
   en: {
+    errPickSide: 'Choose a side to continue.',
+    errPickDrink: 'Choose a drink to continue.',
+    errEmpty: 'Add at least one item to your order.',
+    close: 'Close',
     mealWord: 'Meal',
     stepMain: 'Sandwich',
     stepMainAlt: 'Main',
@@ -180,6 +188,10 @@ const dict = {
     products: 'items',
   },
   uk: {
+    errPickSide: 'Оберіть гарнір, щоб продовжити.',
+    errPickDrink: 'Оберіть напій, щоб продовжити.',
+    errEmpty: 'Додайте хоча б один продукт до замовлення.',
+    close: 'Закрити',
     mealWord: 'Набір',
     stepMain: 'Бургер',
     stepMainAlt: 'Страва',

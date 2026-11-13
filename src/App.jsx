@@ -9,7 +9,7 @@ import Menu from './screens/Menu.jsx';
 import Cart from './screens/Cart.jsx';
 import Payment from './screens/Payment.jsx';
 import Confirmation from './screens/Confirmation.jsx';
-import { finish, isActive, logEvent, refreshAois } from './logger.js';
+import { endScenario, flush, isActive, logError, refreshAois, setResetHandler } from './logger.js';
 
 const IDLE_MS = 60_000;
 
@@ -44,9 +44,10 @@ export default function App() {
     [screen]
   );
 
-  // `reason` trafia do rejestru zdarzeń, gdy zamówienie zostaje anulowane
+  // Powrót do ekranu startowego. Anulowanie zamówienia przez uczestnika nie kończy scenariusza
+  // (koniec = potwierdzenie albo przerwanie przez prowadzącego), ale dopisuje rejestr do pliku.
   const reset = useCallback((reason) => {
-    if (isActive()) finish({ sukces: 0, opis: `anulowano=${typeof reason === 'string' ? reason : 'zacznij_od_nowa'}` });
+    if (reason === 'limit_czasu') logError('LIMIT_CZASU', `${t('moreTimeSub')} 0 s`);
     setDir(-1);
     setScreen('attract');
     setCart([]);
@@ -56,7 +57,11 @@ export default function App() {
     setA11y(false);
     setIdle(false);
     setOrder(null);
-  }, []);
+    if (reason !== 'scenariusz') setTimeout(() => flush(), 0);
+  }, [t]);
+
+  // Start scenariusza klawiszem prowadzącego → kiosk wraca na ekran startowy
+  useEffect(() => { setResetHandler(() => reset('scenariusz')); }, [reset]);
 
   // Wykrywanie bezczynności
   const bump = useCallback(() => {
@@ -70,20 +75,10 @@ export default function App() {
     return () => clearTimeout(idleTimer.current);
   }, [bump]);
 
-  const lineInfo = (l) => ({ element: l.product.id, etykieta: l.product.name, opis: `ilosc=${l.qty} cena=${(l.unitPrice * l.qty).toFixed(2)} ${l.details.join(', ')}`.trim() });
-  const addToCart = (item) => {
-    logEvent('koszyk_dodaj', lineInfo(item));
-    setCart((c) => [...c, { ...item, uid: crypto.randomUUID() }]);
-  };
-  const replaceLine = (uid, item) => {
-    logEvent('koszyk_zmiana', lineInfo(item));
-    setCart((c) => c.map((i) => (i.uid === uid ? { ...item, uid } : i)));
-  };
-  const updateQty = (uid, qty) => {
-    const line = cart.find((i) => i.uid === uid);
-    if (line) logEvent(qty <= 0 ? 'koszyk_usun' : 'koszyk_ilosc', lineInfo({ ...line, qty: Math.max(qty, 0) }));
+  const addToCart = (item) => setCart((c) => [...c, { ...item, uid: crypto.randomUUID() }]);
+  const replaceLine = (uid, item) => setCart((c) => c.map((i) => (i.uid === uid ? { ...item, uid } : i)));
+  const updateQty = (uid, qty) =>
     setCart((c) => (qty <= 0 ? c.filter((i) => i.uid !== uid) : c.map((i) => (i.uid === uid ? { ...i, qty } : i))));
-  };
 
   const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.qty, 0);
   const total = subtotal + (donation?.amount ?? 0);
@@ -91,22 +86,23 @@ export default function App() {
 
   const finishOrder = (method) => {
     const number = Math.floor(100 + Math.random() * 899);
-    logEvent('platnosc', { element: method, opis: `metoda=${method} suma=${total.toFixed(2)}` });
     setOrder({ number, method, total });
     go('done');
   };
 
-  // Zamówienie złożone → zapis pliku z rejestrem (po zalogowaniu ekranu potwierdzenia)
+  // Potwierdzenie zamówienia = koniec scenariusza (po zalogowaniu ekranu potwierdzenia), zapis pliku
   useEffect(() => {
     if (screen === 'done' && order && isActive()) {
-      finish({ sukces: 1, settle: true, opis: `zamowienie=${order.number} metoda=${order.method} suma=${order.total.toFixed(2)} pozycje=${count} na_wynos=${dine === 'out' ? 1 : 0}` });
+      const items = cart.map((l) => `${l.qty}x${l.product.id}`).join(',');
+      endScenario({ sukces: 1, opis: `zamowienie=${order.number} platnosc=${order.method} suma_gr=${Math.round(order.total * 100)} na_wynos=${dine === 'out' ? 1 : 0} pozycje=${items}` });
     }
   }, [screen, order]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tryb dostępności przesuwa cały interfejs → AOI mają nowe położenie
-  const firstA11y = useRef(true);
+  const prevA11y = useRef(a11y);
   useEffect(() => {
-    if (firstA11y.current) { firstA11y.current = false; return; }
+    if (prevA11y.current === a11y) return;
+    prevA11y.current = a11y;
     refreshAois(`dostepnosc=${a11y ? 1 : 0}`);
   }, [a11y]);
 

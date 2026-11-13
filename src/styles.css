@@ -436,3 +436,12 @@ button:disabled { cursor: default; }
 .wz-foot { display: flex; align-items: center; gap: 30px; padding: 34px 60px 50px; background: #fff; border-top: 2px solid #eceef1; }
 .wz-price { flex: 1; text-align: center; font-size: 46px; font-weight: 800; }
 .wz-foot .btn-yellow { min-width: 380px; }
+
+/* ---------- Komunikat błędu (AOI_blad) ---------- */
+.menu-bottom-right, .cart-bottom, .wz-foot { position: relative; }
+.error-wrap { position: absolute; left: 0; right: 0; bottom: calc(100% + 14px); display: flex; justify-content: center; pointer-events: none; z-index: 5; }
+.error-note {
+  background: #fff1f0; color: #a3261b; border: 2px solid #f3b5b0; border-radius: 12px;
+  padding: 18px 26px; font-size: 24px; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.btn-yellow[aria-disabled='true'] { background: #f3ecd6; color: #b9b29c; box-shadow: none; }

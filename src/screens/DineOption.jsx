@@ -10,9 +10,9 @@ const card = {
 };
 
 export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
-  useBaseScreen('opcja');
+  const screenRef = useBaseScreen('opcja');
   return (
-    <div className="page dine">
+    <div ref={screenRef} className="page dine">
       <motion.div className="dine-logo" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }}>
         <Logo size={70} />
       </motion.div>
@@ -36,6 +36,7 @@ export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
             animate="show"
             whileHover={{ y: -8 }}
             whileTap={{ scale: 0.95 }}
+            aria-label={o.label}
             onClick={() => onPick(o.id)}
           >
             <span className="dine-label">{o.label}</span>
@@ -45,7 +46,7 @@ export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
         ))}
       </div>
 
-      <div className="langs" data-aoi="AOI_jezyk">
+      <div className="langs">
         <div className="langs-title">文A {t('availLangs')}</div>
         <div className="langs-row">
           {LANGS.map((l) => (

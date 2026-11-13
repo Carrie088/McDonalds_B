@@ -8,7 +8,7 @@ export default function IdleModal({ t, onContinue, onReset }) {
   useOverlayScreen('bezczynnosc', boxRef);
 
   useEffect(() => {
-    if (left <= 0) { onReset('bezczynnosc_czas'); return; }
+    if (left <= 0) { onReset('limit_czasu'); return; }
     const id = setTimeout(() => setLeft((l) => l - 1), 1000);
     return () => clearTimeout(id);
   }, [left, onReset]);
@@ -18,7 +18,6 @@ export default function IdleModal({ t, onContinue, onReset }) {
       <motion.div
         ref={boxRef}
         className="dialog"
-        data-aoi="AOI_bezczynnosc"
         initial={{ scale: 0.85, y: 60, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 40, opacity: 0 }}

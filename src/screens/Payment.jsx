@@ -6,7 +6,7 @@ import { useBaseScreen } from '../logger.js';
 
 export default function Payment({ t, go, total, onPaid, ...rest }) {
   const [stage, setStage] = useState('choose'); // choose | tap | processing | ok
-  useBaseScreen({ choose: 'platnosc', tap: 'platnosc_terminal', processing: 'platnosc_przetwarzanie', ok: 'platnosc_zaakceptowana' }[stage]);
+  const screenRef = useBaseScreen({ choose: 'platnosc', tap: 'platnosc_terminal', processing: 'platnosc_przetwarzanie', ok: 'platnosc_zaakceptowana' }[stage]);
 
   // Symulacja terminala płatniczego
   useEffect(() => {
@@ -22,8 +22,8 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
   }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="page payment">
-      <div className="pay-total" data-aoi="AOI_suma">
+    <div ref={screenRef} className="page payment">
+      <div className="pay-total">
         <span>{t('total')}</span>
         <b>{formatPrice(total)}</b>
       </div>
@@ -59,7 +59,7 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
 
         {stage === 'tap' && (
           <motion.div key="tap" className="pay-state" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
-            <div className="nfc" data-aoi="AOI_terminal">
+            <div className="nfc">
               {[0, 1, 2].map((k) => (
                 <motion.span
                   key={k}

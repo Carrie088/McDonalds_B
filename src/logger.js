@@ -1,9 +1,16 @@
-// Rejestr zdarzeń do badania (format PUN_zdarzenia.csv).
-// Jedno zamówienie = jeden plik w folderze `zdarzenia/`, zapisywany po zakończeniu albo anulowaniu zamówienia.
+// Moduł rejestrowania zdarzeń do badania — format i słownik: PUN_slownik_zmiennych.csv (plik PUN_zdarzenia).
 //
-// Dane badania ustawia się w adresie strony, np.:
-//   http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA&scenariusz=S2
-// Brakujące wartości biorą się z DEFAULTS.
+// • Jeden plik na uczestnika i wersję: zdarzenia/PUN_zdarzenia_I{interfejs}_{uczestnik}_{wersja}.csv
+//   (UTF-8 z BOM, separator średnik). Kolejne scenariusze S1, S2, S3 dopisują się do tego samego pliku.
+// • Dane uczestnika ustawia się w adresie strony, np.:
+//     http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA&scenariusz=S1
+//   (`scenariusz` = numer pierwszego scenariusza w tej sesji; brakujące wartości biorą się z DEFAULTS).
+// • Scenariusz zaczyna się:
+//     – klawiszem prowadzącego 1, 2 lub 3 (start S1/S2/S3; kiosk wraca na ekran startowy), albo
+//     – pierwszym dotknięciem ekranu startowego, gdy żaden scenariusz nie trwa (kolejny numer).
+//   Kończy się potwierdzeniem zamówienia (sukces = 1) albo klawiszem Esc prowadzącego (przerwanie, sukces = 0).
+// • Plik zapisuje się (dopisuje nowe wiersze) przy końcu scenariusza, przy anulowaniu zamówienia przez
+//   uczestnika („Zacznij od nowa”, upływ limitu czasu) i przy zamknięciu strony.
 
 import { useEffect, useRef } from 'react';
 import { useIsPresent } from 'framer-motion';
@@ -15,21 +22,29 @@ const COLUMNS = [
   'zdarzenie', 'ekran', 'element', 'etykieta', 'x', 'y', 'szer', 'wys', 'trafienie', 'aoi', 'sukces', 'opis',
 ];
 
-// Po tylu ms od pojawienia się ekranu/AOI mierzymy jego położenie (po animacji wejścia)
+// Po tylu ms od wejścia na ekran mierzymy położenie ekranu i AOI (po animacji wejścia)
 const SETTLE_MS = 1000;
 
 const query = new URLSearchParams(window.location.search);
-const meta = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, query.get(k) ?? v]));
+const param = (k) => query.get(k) ?? DEFAULTS[k];
+const meta = { interfejs: param('interfejs'), uczestnik: param('uczestnik'), wersja: param('wersja'), kolejnosc: param('kolejnosc') };
+const FILE_NAME = `PUN_zdarzenia_I${String(meta.interfejs).padStart(2, '0')}_${meta.uczestnik}_${meta.wersja}.csv`;
 
-let rows = [];
-let active = false;
+let rows = []; // wiersze jeszcze niezapisane do pliku
+let scenario = ''; // bieżący (albo ostatni) scenariusz; puste przed pierwszym startem
+let nextScenario = Number(String(param('scenariusz')).replace(/\D/g, '')) || 1;
+let active = false; // czy trwa scenariusz
 let t0 = 0;
-let base = { name: 'start', opis: '' }; // ekran główny (start, opcja, menu, koszyk, platnosc, potwierdzenie)
-const overlays = []; // okna nad ekranem głównym: produkt, zestaw, bezczynnosc
-const aois = new Map(); // element DOM → { aoi, element, etykieta }
-let observer = null;
-let scanTimer = null;
+
+let base = { name: 'start', opis: '', el: null }; // ekran główny
+const overlays = []; // okna nad ekranem: produkt, zestaw_*, bezczynnosc
+let lastEkran = '';
+
+const tracked = new Map(); // AOI zgłoszone na bieżącym ekranie: element DOM → { aoi, element }
+let firstSeen = new WeakMap(); // kiedy element AOI pojawił się na bieżącym ekranie
+let settle = null; // { timer, scope } — ekran czeka na koniec animacji wejścia
 const pending = new Set(); // wiersze czekające na pomiar położenia
+let resetHandler = null;
 
 // ---------- pomocnicze ----------
 const pad = (n, w = 2) => String(n).padStart(w, '0');
@@ -37,17 +52,18 @@ const localTime = (ms) => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 };
-const fileTime = (ms) => localTime(ms).replace(' ', '_').replace(/:/g, '-').replace(/\.\d+$/, '');
 
-const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+// Emoji i symbole-ikonki (🍔 ✓ ✎ ⌄ ♿ ← →) nie są „widocznym tekstem” — usuwamy je z etykiet (® i © zostają)
+const ICONS = /[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+const clean = (s) => String(s ?? '').replace(ICONS, ' ').replace(/\s+/g, ' ').trim();
+
 export const slug = (s) =>
   clean(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L')
     .toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
 
-const labelOf = (el) => clean(el.getAttribute('aria-label') || el.dataset.label || el.innerText).slice(0, 80);
-const idOf = (el) =>
-  el.dataset.log || el.id || (el.dataset.aoi && el.dataset.aoi.replace(/^AOI_/, '').toLowerCase())
-  || slug(labelOf(el)) || slug(el.className) || el.tagName.toLowerCase();
+const labelOf = (el) => clean(el.getAttribute('aria-label') || el.dataset.label || el.innerText).slice(0, 100);
+// Słownik: element = data-log, a przy jego braku id
+const idOf = (el) => el.dataset.log || el.id || slug(labelOf(el)) || el.tagName.toLowerCase();
 
 const rectOf = (el) => {
   if (!el?.isConnected) return {};
@@ -55,63 +71,104 @@ const rectOf = (el) => {
   return { x: Math.round(r.left), y: Math.round(r.top), szer: Math.round(r.width), wys: Math.round(r.height) };
 };
 const stageEl = () => document.querySelector('.stage-box');
+const deref = (el) => (el && 'current' in el ? el.current : el);
 
 const top = () => overlays[overlays.length - 1] ?? base;
-export const currentScreen = () => top().name;
 
 function push(fields, at = Date.now()) {
   const row = {
     ...meta,
+    scenariusz: scenario,
     czas_lokalny: localTime(at),
     czas_epoch_ms: at,
-    czas_ms: at - t0,
-    ekran: currentScreen(),
+    czas_ms: active ? at - t0 : '',
+    ekran: top().name,
     ...fields,
   };
   rows.push(row);
   return row;
 }
 
-// Położenie mierzymy po animacji wejścia; przy zapisie pliku mierzymy od razu to, co jeszcze czeka
 function measureLater(row, el) {
   const job = { row, el };
   pending.add(job);
   setTimeout(() => {
-    if (!pending.has(job)) return;
-    pending.delete(job);
-    Object.assign(row, rectOf(el));
+    if (!pending.delete(job)) return;
+    Object.assign(row, rectOf(deref(el)));
   }, SETTLE_MS);
 }
+const measureAllNow = () => {
+  pending.forEach(({ row, el }) => Object.assign(row, rectOf(deref(el))));
+  pending.clear();
+};
 
 // ---------- ekrany ----------
-function logScreen(screen) {
-  if (!active) return;
-  const el = screen.el?.current ?? screen.el ?? stageEl();
-  const row = push({ zdarzenie: 'ekran', ekran: screen.name, opis: screen.opis ?? '' });
-  if (screen.el) measureLater(row, el);
-  else Object.assign(row, rectOf(el));
+// Wejście na ekran kończy wszystkie AOI poprzedniego ekranu. AOI nowego ekranu zgłaszamy po animacji wejścia,
+// z czasem ich pojawienia się (dla TTFF), tylko te, które nadal są widoczne (bez znikającej treści poprzedniego ekranu).
+function logScreen(screen, force = false) {
+  const key = `${screen.name}|${screen.opis ?? ''}`;
+  if (!force && key === lastEkran) return;
+  lastEkran = key;
+  completeSettle();
+  tracked.clear();
+  firstSeen = new WeakMap();
+
+  const now = Date.now();
+  const el = screen.el ? deref(screen.el) : stageEl();
+  const row = push({ zdarzenie: 'ekran', ekran: screen.name, opis: screen.opis ?? '' }, now);
+  // Położenie mierzymy po animacji wejścia (i po dopasowaniu skali kiosku do okna)
+  Object.assign(row, rectOf(el));
+  measureLater(row, screen.el ?? el);
+
+  const scope = () => (screen.el ? deref(screen.el) : deref(screen.root)) ?? document.body;
+  queueMicrotask(() => scope()?.querySelectorAll('[data-aoi]').forEach((a) => firstSeen.set(a, now)));
+  settle = { scope, name: screen.name, timer: setTimeout(completeSettle, SETTLE_MS) };
 }
 
-export function setBaseScreen(name, opis = '') {
-  const changed = base.name !== name || base.opis !== opis;
-  base = { name, opis };
-  if (changed && overlays.length === 0) logScreen(base);
+function completeSettle() {
+  if (!settle) return;
+  const { scope, name, timer } = settle;
+  clearTimeout(timer);
+  settle = null;
+  scope()?.querySelectorAll('[data-aoi]').forEach((el) => {
+    if (tracked.has(el)) return;
+    const at = firstSeen.get(el) ?? Date.now();
+    reportAoi(el, at, true, '', name);
+  });
+  sortRows();
 }
 
-// Hook dla ekranów głównych: loguje ekran przy wejściu i przy zmianie nazwy/opisu
+function reportAoi(el, at, measureNow, opis = '', ekran = top().name) {
+  const info = { aoi: el.dataset.aoi, element: idOf(el) };
+  tracked.set(el, info);
+  const row = push({ zdarzenie: 'aoi', ekran, element: info.element, etykieta: labelOf(el), aoi: info.aoi, opis }, at);
+  if (measureNow) Object.assign(row, rectOf(el));
+  else measureLater(row, el);
+}
+
+const RANK = { sesja: 0, scenariusz_start: 1, ekran: 2, aoi: 3, scenariusz_koniec: 9 };
+const rank = (r) => RANK[r.zdarzenie] ?? 5;
+const sortRows = () => rows.sort((a, b) => a.czas_epoch_ms - b.czas_epoch_ms || rank(a) - rank(b));
+
+export function setBaseScreen(name, opis = '', root = null) {
+  base = { name, opis, root };
+  if (overlays.length === 0) logScreen(base);
+}
+
+// Hook ekranu głównego. Zwraca ref, który trzeba podpiąć pod główny element ekranu (zakres AOI).
 export function useBaseScreen(name, opis = '') {
-  useEffect(() => { setBaseScreen(name, opis); }, [name, opis]);
+  const ref = useRef(null);
+  useEffect(() => { setBaseScreen(name, opis, ref); }, [name, opis]);
+  return ref;
 }
 
-// Hook dla okien nad ekranem (okno produktu, kreator zestawu, okno bezczynności).
-// Ekran pod spodem logujemy ponownie od razu, gdy okno zaczyna znikać.
+// Hook okna nad ekranem (okno produktu, kreator zestawu, okno bezczynności). `ref` = główny element okna.
 export function useOverlayScreen(name, ref, opis = '') {
   const present = useIsPresent();
   const entry = useRef(null);
 
   useEffect(() => {
-    // React StrictMode (tryb dev) montuje komponent dwa razy: odmontowanie-zamontowanie od razu
-    // nie może dać w rejestrze fałszywego „zamknięcia” okna, więc zamknięcie odkładamy o jedno tyknięcie.
+    // React StrictMode (tryb dev) montuje komponent dwa razy — zamknięcie odkładamy o jedno tyknięcie
     let e = entry.current;
     if (e?.closeTimer) {
       clearTimeout(e.closeTimer);
@@ -135,6 +192,7 @@ export function useOverlayScreen(name, ref, opis = '') {
     if (top() === e) logScreen(e);
   }, [name, opis]);
 
+  // Okno zaczyna znikać → od razu wracamy do ekranu pod spodem
   useEffect(() => {
     if (!present && entry.current) closeOverlay(entry.current);
   }, [present]);
@@ -148,42 +206,49 @@ function closeOverlay(e) {
   if (wasTop) logScreen(top());
 }
 
-// ---------- AOI (obszary zainteresowania: elementy z atrybutem data-aoi) ----------
+// ---------- AOI w obrębie ekranu (bez zmiany ekranu) ----------
+let scanTimer = null;
 function scanAois() {
   scanTimer = null;
-  if (!active) return;
-  const now = new Set(document.querySelectorAll('[data-aoi]'));
-  aois.forEach((info, el) => {
-    if (!now.has(el) || !el.isConnected) {
-      aois.delete(el);
-      push({ zdarzenie: 'aoi_znika', element: info.element, aoi: info.aoi });
+  const scope = (settle ? settle.scope() : null) ?? deref(top().el ?? top().root);
+  if (!scope) return;
+  const now = Date.now();
+  const inScope = new Set(scope.querySelectorAll('[data-aoi]'));
+  if (settle) {
+    // Ekran jeszcze wchodzi: zapamiętujemy tylko moment pojawienia się nowych AOI
+    inScope.forEach((el) => { if (!firstSeen.has(el)) firstSeen.set(el, now); });
+    return;
+  }
+  tracked.forEach((info, el) => {
+    if (!inScope.has(el) || !el.isConnected) {
+      tracked.delete(el);
+      push({ zdarzenie: 'aoi_znika', element: info.element, aoi: info.aoi }, now);
     }
   });
-  now.forEach((el) => {
-    if (aois.has(el)) return;
-    const info = { aoi: el.dataset.aoi, element: idOf(el), etykieta: labelOf(el) };
-    aois.set(el, info);
-    const row = push({ zdarzenie: 'aoi', element: info.element, etykieta: info.etykieta, aoi: info.aoi });
-    measureLater(row, el);
-  });
+  inScope.forEach((el) => { if (!tracked.has(el)) reportAoi(el, now, false); });
 }
-const scheduleScan = () => {
-  if (!scanTimer) scanTimer = setTimeout(scanAois, 40);
-};
+const observer = new MutationObserver(() => { if (!scanTimer) scanTimer = setTimeout(scanAois, 30); });
+observer.observe(document.body, { childList: true, subtree: true });
 
-// Po zmianie układu (tryb dostępności, zmiana rozmiaru okna) AOI są w innym miejscu → zapisujemy je ponownie
+// Zmiana położenia AOI (tryb dostępności, zmiana rozmiaru okna) → nowe wiersze aoi po zakończeniu animacji
 export function refreshAois(opis) {
-  if (!active) return;
-  logScreen({ ...top(), opis: [top().opis, opis].filter(Boolean).join(' ') });
-  aois.clear();
-  setTimeout(scanAois, SETTLE_MS);
+  setTimeout(() => {
+    completeSettle();
+    tracked.forEach((info, el) => { if (el.isConnected) reportAoi(el, Date.now(), true, opis); });
+  }, SETTLE_MS);
 }
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => refreshAois(`okno=${window.innerWidth}x${window.innerHeight}`), 300);
+});
 
 // ---------- dotknięcia ----------
-const INTERACTIVE = 'button, a, input, select, textarea, [role="button"], [data-log]';
+const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
 function onPointerDown(e) {
-  if (!active) start();
+  // Brak trwającego scenariusza + dotknięcie ekranu startowego → start kolejnego scenariusza
+  if (!active && base.name === 'start' && overlays.length === 0) startScenario(nextScenario, 'start=dotkniecie');
   const el = e.target.closest?.(INTERACTIVE);
   const aoiEl = e.target.closest?.('[data-aoi]');
   const disabled = Boolean(el?.disabled || el?.getAttribute?.('aria-disabled') === 'true');
@@ -197,78 +262,57 @@ function onPointerDown(e) {
     aoi: aoiEl?.dataset.aoi ?? '',
     opis: e.pointerType || 'touch',
   });
-  if (disabled) logError('PRZYCISK_NIEAKTYWNY', `Przycisk jest nieaktywny: ${labelOf(el)}`);
 }
 
-// ---------- API dla aplikacji ----------
-export function logError(code, message) {
-  if (active) push({ zdarzenie: 'blad', element: code, etykieta: message });
+// ---------- scenariusze ----------
+export function startScenario(n, opis = '') {
+  if (active) endScenario({ sukces: 0, opis: `przerwano=start_S${n}` });
+  scenario = `S${n}`;
+  nextScenario = n + 1;
+  active = true;
+  t0 = Date.now();
+  push({ zdarzenie: 'scenariusz_start', ekran: '', opis }, t0);
+  if (resetHandler && !(base.name === 'start' && overlays.length === 0)) {
+    resetHandler(); // kiosk wraca na ekran startowy, ekran zaloguje się sam
+  } else {
+    logScreen(top(), true);
+  }
 }
 
-// Zdarzenia aplikacji, np. dodanie do koszyka (zdarzenie = 'koszyk_dodaj' itd.)
-export function logEvent(zdarzenie, fields = {}) {
-  if (active) push({ zdarzenie, ...fields });
+// Koniec zadania: potwierdzenie (sukces = 1) albo przerwanie przez prowadzącego (sukces = 0). Zapisuje plik.
+export function endScenario({ sukces, opis = '' }) {
+  if (!active) return;
+  completeSettle();
+  push({ zdarzenie: 'scenariusz_koniec', sukces, opis });
+  active = false;
+  flush();
 }
 
 export const isActive = () => active;
 
-export function start() {
-  if (active) return;
-  active = true;
-  rows = [];
-  aois.clear();
-  const now = Date.now();
-  rows.push({
-    ...meta,
-    scenariusz: '',
-    czas_lokalny: localTime(now),
-    czas_epoch_ms: now,
-    czas_ms: '',
-    zdarzenie: 'sesja',
-    opis: `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`,
-  });
-  t0 = now;
-  push({ zdarzenie: 'scenariusz_start', ekran: '' }, now);
-  logScreen(top());
-  scanAois();
-  observer = new MutationObserver(scheduleScan);
-  observer.observe(document.body, { childList: true, subtree: true });
+// Kiosk prosi o powrót do ekranu startowego przy starcie scenariusza klawiszem
+export function setResetHandler(fn) { resetHandler = fn; }
+
+// Błąd pokazany uczestnikowi (komunikat, upływ limitu czasu). Kod bez spacji, etykieta = treść komunikatu.
+export function logError(code, message) {
+  push({ zdarzenie: 'blad', element: code, etykieta: clean(message) });
 }
 
-// Koniec zamówienia: sukces = 1 (zamówienie złożone) albo 0 (anulowane). Zapisuje plik CSV.
-// settle: true → plik zapisujemy chwilę później, żeby zmierzyć położenie AOI ekranu potwierdzenia po animacji.
-export function finish({ sukces, opis = '', powod = sukces ? 'zakonczone' : 'anulowane', beacon = false, settle = false }) {
-  if (!active) return;
-  if (scanTimer) clearTimeout(scanTimer);
-  scanAois();
-  push({ zdarzenie: 'scenariusz_koniec', sukces, opis });
-  observer?.disconnect();
-  observer = null;
-  active = false;
-  // Kopia danych tego zamówienia — nowe zamówienie może zacząć się, zanim plik zostanie zapisany
-  const data = rows;
-  const jobs = [...pending];
-  const startedAt = t0;
-  rows = [];
-  pending.clear();
-  aois.clear();
-  const write = () => {
-    jobs.forEach(({ row, el }) => Object.assign(row, rectOf(el)));
-    const csv = [COLUMNS.join(';'), ...data.map((r) => COLUMNS.map((c) => csvField(r[c])).join(';'))].join('\n') + '\n';
-    const nazwa = `PUN_zdarzenia_${meta.uczestnik}_${meta.scenariusz || 'brak'}_${fileTime(startedAt)}_${sukces ? 'zakonczone' : powod}.csv`;
-    save(nazwa, csv, beacon);
-  };
-  if (settle) setTimeout(write, SETTLE_MS + 50);
-  else write();
-}
-
+// ---------- zapis ----------
 function csvField(v) {
   const s = v === undefined || v === null ? '' : String(v);
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function save(nazwa, csv, beacon) {
-  const body = JSON.stringify({ nazwa, csv });
+// Dopisuje niezapisane wiersze do pliku uczestnika (serwer Vite dodaje BOM i nagłówek przy nowym pliku)
+export function flush({ beacon = false } = {}) {
+  completeSettle();
+  measureAllNow();
+  sortRows();
+  if (rows.length === 0) return;
+  const wiersze = rows.map((r) => COLUMNS.map((c) => csvField(r[c])).join(';')).join('\n') + '\n';
+  rows = [];
+  const body = JSON.stringify({ nazwa: FILE_NAME, naglowek: COLUMNS.join(';'), wiersze });
   if (beacon && navigator.sendBeacon) {
     navigator.sendBeacon('/api/zdarzenia', new Blob([body], { type: 'application/json' }));
     return;
@@ -277,24 +321,35 @@ function save(nazwa, csv, beacon) {
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
     .then((r) => console.info(`[zdarzenia] zapisano ${r.plik}`))
     .catch((err) => {
-      // Brak serwera Vite (np. plik otwarty z dysku) → pobieramy plik w przeglądarce
+      // Brak serwera Vite → pobieramy fragment pliku w przeglądarce
       console.warn('[zdarzenia] zapis na serwerze nieudany, pobieram plik', err);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      a.download = nazwa;
+      a.href = URL.createObjectURL(new Blob(['﻿', `${COLUMNS.join(';')}\n`, wiersze], { type: 'text/csv;charset=utf-8' }));
+      a.download = FILE_NAME;
       a.click();
       URL.revokeObjectURL(a.href);
     });
 }
 
-// Zmiana rozmiaru okna przesuwa interfejs → AOI zapisujemy ponownie
-let resizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => refreshAois(`zmiana_okna=${window.innerWidth}x${window.innerHeight}`), 300);
+// ---------- start modułu ----------
+push({
+  zdarzenie: 'sesja',
+  ekran: '',
+  opis: `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`,
 });
 
-// Nasłuch dotknięć w całym dokumencie (faza capture, żeby złapać też dotknięcia w nieaktywne przyciski)
 document.addEventListener('pointerdown', onPointerDown, true);
-// Zamknięcie lub odświeżenie strony w trakcie zamówienia → zapisujemy to, co jest
-window.addEventListener('pagehide', () => finish({ sukces: 0, opis: 'anulowano=zamkniecie_strony', beacon: true }));
+
+// Klawisze prowadzącego: 1–3 = start scenariusza S1–S3, Esc = przerwanie bieżącego scenariusza
+window.addEventListener('keydown', (e) => {
+  if (e.target.closest?.('input, textarea')) return;
+  if (/^[1-3]$/.test(e.key)) startScenario(Number(e.key), 'start=prowadzacy');
+  else if (e.key === 'Escape') endScenario({ sukces: 0, opis: 'przerwano=prowadzacy' });
+});
+
+// Błąd JavaScript → wiersz blad z kodem JS
+window.addEventListener('error', (e) => logError('JS', e.message));
+window.addEventListener('unhandledrejection', (e) => logError('JS', String(e.reason?.message ?? e.reason)));
+
+// Zamknięcie lub odświeżenie strony → dopisujemy to, co zostało
+window.addEventListener('pagehide', () => flush({ beacon: true }));

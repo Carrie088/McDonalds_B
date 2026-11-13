@@ -7,11 +7,13 @@ import MealWizard from '../components/MealWizard.jsx';
 import { tr, lineDetails } from '../menuI18n.js';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
 import { useBaseScreen } from '../logger.js';
+import ErrorNote, { useErrorNote } from '../components/ErrorNote.jsx';
 
 export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, total, donation, setDonation, ...rest }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
-  useBaseScreen('koszyk');
+  const screenRef = useBaseScreen('koszyk');
+  const [err, showErr] = useErrorNote();
 
   // Zestawy edytujemy w kreatorze, pojedyncze produkty w oknie produktu
   const isMealLine = (line) => line.product.meal || line.config?.asMeal;
@@ -26,12 +28,12 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
   ];
 
   return (
-    <div className="page cart">
+    <div ref={screenRef} className="page cart">
       <motion.h1 className="cart-title" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
         <span className="cart-title-ico">🛍️</span> {t('yourOrder')}
       </motion.h1>
 
-      <div className="cart-list" data-aoi="AOI_lista">
+      <div className="cart-list">
         <AnimatePresence initial={false}>
           {cart.length === 0 && (
             <motion.div key="empty" className="cart-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -53,7 +55,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
                 <div className="cl-name">{tr(line.product.name, rest.lang)}{line.config?.asMeal && <span className="meal-tag">🍟🥤 {t('mealOn').split(':')[0]}</span>}</div>
                 <div className="cl-btns">
                   {canEdit(line) && (
-                    <button className="btn-outline xs" data-aoi="AOI_personalizuj" data-log={`personalizuj_${line.product.id}`} onClick={() => startEdit(line)}>✎ {t('personalize')}</button>
+                    <button className="btn-outline xs" data-log={`personalizuj_${line.product.id}`} onClick={() => startEdit(line)}>✎ {t('personalize')}</button>
                   )}
                   {lineDetails(line, rest.lang, t).length > 0 && (
                     <button className="btn-outline xs" data-log={`szczegoly_${line.product.id}`} onClick={() => setOpen({ ...open, [line.uid]: !open[line.uid] })}>
@@ -71,7 +73,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
               </div>
               <div className="cl-ctrl">
                 <QtyStepper value={line.qty} onChange={(q) => updateQty(line.uid, q)} />
-                <button className="btn-outline xs wide" data-aoi="AOI_usun" data-log={`usun_${line.product.id}`} onClick={() => updateQty(line.uid, 0)}>{t('remove')}</button>
+                <button className="btn-outline xs wide" data-log={`usun_${line.product.id}`} onClick={() => updateQty(line.uid, 0)}>{t('remove')}</button>
               </div>
               <div className="cl-price">{formatPrice(line.unitPrice * line.qty)}</div>
             </motion.div>
@@ -79,7 +81,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
         </AnimatePresence>
       </div>
 
-      <motion.div className="donation" data-aoi="AOI_darowizna" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }}>
+      <motion.div className="donation" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }}>
         <div className="don-logo">
           <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 1.4 }}>❤️</motion.span>
           <small>Dom Ronalda McDonalda</small>
@@ -102,7 +104,8 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
       </motion.div>
 
       <div className="cart-bottom">
-        <div className="sum-row" data-aoi="AOI_suma">
+        <ErrorNote err={err} />
+        <div className="sum-row">
           <span>{t('total')}</span>
           <motion.b key={total} initial={{ scale: 1.15, color: '#d88a00' }} animate={{ scale: 1, color: '#1a1a1a' }}>
             {formatPrice(total)}
@@ -110,7 +113,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
         </div>
         <div className="cart-actions">
           <button className="btn-outline lg" data-aoi="AOI_wstecz" data-log="dodaj_produkty" onClick={() => go('menu')}>{t('addProducts')}</button>
-          <motion.button className="btn-yellow lg grow" data-aoi="AOI_cel" data-log="zloz_zamowienie" disabled={cart.length === 0} whileTap={{ scale: 0.97 }} onClick={() => go('payment')}>
+          <motion.button className="btn-yellow lg grow" data-aoi="AOI_cel" data-log="zloz_zamowienie" aria-disabled={cart.length === 0} whileTap={{ scale: 0.97 }} onClick={() => (cart.length === 0 ? showErr('PUSTE_ZAMOWIENIE', t('errEmpty')) : go('payment'))}>
             {t('placeOrder')}
           </motion.button>
         </div>

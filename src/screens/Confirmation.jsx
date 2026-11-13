@@ -15,7 +15,7 @@ const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
 
 export default function Confirmation({ t, order, dine, reset }) {
   const [left, setLeft] = useState(20);
-  useBaseScreen('potwierdzenie');
+  const screenRef = useBaseScreen('potwierdzenie');
 
   useEffect(() => {
     if (left <= 0) { reset(); return; }
@@ -24,7 +24,7 @@ export default function Confirmation({ t, order, dine, reset }) {
   }, [left, reset]);
 
   return (
-    <div className="page done">
+    <div ref={screenRef} className="page done">
       {CONFETTI.map((c, i) => (
         <motion.span
           key={i}
@@ -43,7 +43,7 @@ export default function Confirmation({ t, order, dine, reset }) {
         {t('thanks')}
       </motion.h1>
 
-      <motion.div className="order-card" data-aoi="AOI_numer" initial={{ y: 80, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ delay: 0.35, type: 'spring', stiffness: 180, damping: 18 }}>
+      <motion.div className="order-card" initial={{ y: 80, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ delay: 0.35, type: 'spring', stiffness: 180, damping: 18 }}>
         <span>{t('orderNo')}</span>
         <motion.b initial={{ scale: 0.3 }} animate={{ scale: 1 }} transition={{ delay: 0.6, type: 'spring', stiffness: 300, damping: 12 }}>
           {order?.number}

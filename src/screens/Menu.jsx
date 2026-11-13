@@ -4,6 +4,7 @@ import { categories, formatPrice, homeTiles, products, promos } from '../data.js
 import Logo from '../components/Logo.jsx';
 import { tr } from '../menuI18n.js';
 import { useBaseScreen } from '../logger.js';
+import ErrorNote, { useErrorNote } from '../components/ErrorNote.jsx';
 import ProductModal from '../components/ProductModal.jsx';
 import MealWizard from '../components/MealWizard.jsx';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
@@ -24,13 +25,15 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
   const [flyer, setFlyer] = useState(null);
 
   const [wizard, setWizard] = useState(null);
-  useBaseScreen('menu', `kategoria=${cat}`);
+  const screenRef = useBaseScreen('menu', `kategoria=${cat}`);
+  const [err, showErr, hideErr] = useErrorNote();
 
   // Zestaw → pełnoekranowy kreator, pojedynczy produkt → okno produktu
   const open = (p) => (p.meal ? setWizard({ product: p }) : setSelected(p));
   const openProduct = (id) => open(products.find((p) => p.id === id));
 
   const handleAdd = (line) => {
+    hideErr();
     addToCart(line);
     setSelected(null);
     setWizard(null);
@@ -43,8 +46,8 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
   const catObj = categories.find((c) => c.id === cat);
 
   return (
-    <div className="page menu">
-      <aside className="sidebar" data-aoi="AOI_kategorie">
+    <div ref={screenRef} className="page menu">
+      <aside className="sidebar">
         <div className="side-logo"><Logo size={90} /></div>
         <div className="side-group">
           <SideItem log="kategoria_home" active={cat === 'home'} onClick={() => setCat('home')} emoji="📋" label={t('mainMenu')} bold />
@@ -70,7 +73,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             {cat === 'home' ? (
               <>
                 <h2 className="section-title">{t('checkMenu')}</h2>
-                <motion.div className="tiles" data-aoi="AOI_kafle" variants={grid} initial="hidden" animate="show">
+                <motion.div className="tiles" variants={grid} initial="hidden" animate="show">
                   {homeTiles.map((tile) => (
                     <motion.button
                       key={tile.cat}
@@ -88,7 +91,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
                 </motion.div>
 
                 <h2 className="section-title">{t('tryNew')}</h2>
-                <motion.div className="promos" data-aoi="AOI_promocje" variants={grid} initial="hidden" animate="show">
+                <motion.div className="promos" variants={grid} initial="hidden" animate="show">
                   {promos.map((p) => (
                     <motion.button
                       key={p.productId}
@@ -111,7 +114,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             ) : (
               <>
                 <h2 className="section-title big">{catObj.name[lang]}</h2>
-                <motion.div className="products" data-aoi="AOI_produkty" variants={grid} initial="hidden" animate="show">
+                <motion.div className="products" variants={grid} initial="hidden" animate="show">
                   {list.map((p) => (
                     <motion.button
                       key={p.id}
@@ -137,7 +140,8 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
       <div className="menu-bottom">
         <ScanBox t={t} />
         <div className="menu-bottom-right">
-          <div className="cart-row" data-aoi="AOI_koszyk">
+          <ErrorNote err={err} />
+          <div className="cart-row">
             <div className="cart-ico">
               🛍️
               <motion.span
@@ -155,9 +159,10 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             </motion.div>
             <motion.button
               className="btn-yellow summary-btn"
+              data-aoi="AOI_cel"
               data-log="przejdz_do_podsumowania"
-              disabled={count === 0}
-              onClick={() => go('cart')}
+              aria-disabled={count === 0}
+              onClick={() => (count === 0 ? showErr('PUSTE_ZAMOWIENIE', t('errEmpty')) : go('cart'))}
               animate={count > 0 ? { scale: [1, 1.05, 1] } : {}}
               transition={{ duration: 0.4 }}
               key={`s-${count}`}

@@ -24,14 +24,22 @@ Produkty, ceny i kategorie: `src/data.js`. Teksty (PL/EN/UK): `src/i18n.js`.
 Obrazki są emoji – możesz je zamienić na zdjęcia (np. `<img>` w `Menu.jsx` / `ProductModal.jsx`).
 
 ## Rejestr zdarzeń (badanie)
-Każde zamówienie zapisuje się jako osobny plik CSV w folderze `zdarzenia/`
-(format `PUN_zdarzenia`: dotknięcia, ekrany, obszary AOI, błędy, zmiany w koszyku).
-Plik powstaje po złożeniu zamówienia (`..._zakonczone.csv`) albo po jego anulowaniu
-(„Zacznij od nowa”, bezczynność, zamknięcie strony → `..._anulowane.csv`).
+Format zgodny ze słownikiem `PUN_slownik_zmiennych.csv` (plik PUN_zdarzenia):
+jeden plik na uczestnika i wersję, `zdarzenia/PUN_zdarzenia_I06_P01_A.csv`, UTF-8 z BOM, separator `;`.
+Scenariusze S1, S2, S3 dopisują się kolejno do tego samego pliku.
 
 Dane uczestnika ustawia się w adresie strony, np.:
-`http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=A&kolejnosc=AB&scenariusz=S2`
-(wartości domyślne: `src/logger.js` → `DEFAULTS`).
+`http://localhost:5173/?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA`
+(opcjonalnie `&scenariusz=S2` = od którego scenariusza zacząć; domyślne wartości w `src/logger.js` → `DEFAULTS`).
 
-Zapis działa przy `npm run dev` i `npm run preview`. Bez serwera Vite plik pobiera się przez przeglądarkę.
-Obszary AOI to elementy z atrybutem `data-aoi`, a nazwy elementów pochodzą z atrybutu `data-log`.
+Sterowanie przez prowadzącego (klawiatura):
+- `1`, `2`, `3` – start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy),
+- `Esc` – przerwanie bieżącego scenariusza (`scenariusz_koniec`, sukces = 0).
+
+Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego (kolejny numer),
+a kończy się potwierdzeniem zamówienia (sukces = 1). „Zacznij od nowa” i upływ limitu czasu
+nie kończą scenariusza (limit czasu to wiersz `blad`), ale dopisują rejestr do pliku.
+
+AOI (wspólna lista): `AOI_cel`, `AOI_wstecz`, `AOI_dostepnosc`, `AOI_blad` – atrybut `data-aoi`;
+nazwa elementu – atrybut `data-log`. Do poprawnych współrzędnych: pełny ekran (F11) i skalowanie systemu 100%.
+Zapis działa przy `npm run dev` i `npm run preview`.

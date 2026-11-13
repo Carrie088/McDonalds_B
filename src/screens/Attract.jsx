@@ -9,7 +9,7 @@ import Logo from '../components/Logo.jsx';
 export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
   const [i, setI] = useState(0);
   const [langOpen, setLangOpen] = useState(false);
-  useBaseScreen('start');
+  const screenRef = useBaseScreen('start');
 
   useEffect(() => {
     const id = setInterval(() => setI((x) => (x + 1) % attractSlides.length), 5000);
@@ -19,8 +19,8 @@ export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
   const slide = attractSlides[i];
 
   return (
-    <div className="attract" onClick={() => go('dine')}>
-      <div className="attract-hero" data-log="pokaz_slajdow" data-label={tr(slide.title, lang)}>
+    <div ref={screenRef} className="attract" onClick={() => go('dine')}>
+      <div className="attract-hero" role="button" data-log="pokaz_slajdow" data-label={tr(slide.title, lang)}>
         <AnimatePresence initial={false}>
           <motion.div
             key={i}
@@ -79,15 +79,15 @@ export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
             <span>{t('toStart')}</span>
           </motion.button>
           <div className="attract-small">
-            <button className="btn-outline" data-aoi="AOI_jezyk" data-log="jezyki" onClick={() => setLangOpen(!langOpen)}>
+            <button className="btn-outline" data-log="jezyki" aria-label={t('languages')} onClick={() => setLangOpen(!langOpen)}>
               <span className="ico">文A</span>
               <span><small>{t('languages')}</small><br /><b>EN UA</b></span>
             </button>
-            <button className={`btn-outline ${a11y ? 'active' : ''}`} data-aoi="AOI_dostepnosc" data-log="dostepnosc" onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
+            <button className={`btn-outline ${a11y ? 'active' : ''}`} data-aoi="AOI_dostepnosc" data-log="dostepnosc" aria-label={t('a11y')} onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
           </div>
           <AnimatePresence>
             {langOpen && (
-              <motion.div className="lang-pop" data-aoi="AOI_jezyk_lista" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
+              <motion.div className="lang-pop" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
                 {LANGS.map((l) => (
                   <button key={l.id} data-log={`jezyk_${l.id}`} className={`lang-btn ${lang === l.id ? 'on' : ''}`} onClick={() => { setLang(l.id); setLangOpen(false); }}>
                     {l.label}

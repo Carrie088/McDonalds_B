@@ -48,7 +48,7 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
         exit={{ y: 160, scale: 0.92, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 26 }}
       >
-        <button className="close-x" data-aoi="AOI_wstecz" data-log="zamknij" aria-label={t('cancel')} onClick={onClose}>✕</button>
+        <button className="close-x" data-aoi="AOI_wstecz" data-log="zamknij" aria-label={t('close')} onClick={onClose}>✕</button>
 
         <div className="pm-scroll">
           <motion.div className="pm-image" style={{ background: product.bg }}>
@@ -64,10 +64,10 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
           <h2 className="pm-name">{tr(product.name, lang)}</h2>
           <div className="pm-price">{formatPrice(unitPrice)}</div>
 
-          <button className="btn-outline sm center" data-aoi="AOI_info" data-log="wartosci_odzywcze" onClick={() => setInfo(!info)}>{t('nutrition')}</button>
+          <button className="btn-outline sm center" data-log="wartosci_odzywcze" onClick={() => setInfo(!info)}>{t('nutrition')}</button>
           <AnimatePresence initial={false}>
             {info && (
-              <motion.div className="pm-info" data-aoi="AOI_info_tresc" data-log="wartosci_odzywcze_tresc" {...collapse}>
+              <motion.div className="pm-info" data-log="wartosci_odzywcze_tresc" {...collapse}>
                 <div className="pm-info-inner">
                   <div className="kcal"><b>{product.kcal}</b> kcal</div>
                   {product.ingredients.length > 0 && (
@@ -81,7 +81,6 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
           {upsell && (
             <motion.button
               className="meal-upsell"
-              data-aoi="AOI_upsell"
               data-log="propozycja_zestawu"
               onClick={() => onMakeMeal({ removed, added, qty })}
               initial={{ opacity: 0, y: 30, scale: 0.96 }}
@@ -106,7 +105,7 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
 
           {customizable && (
             <>
-              <button className={`btn-outline wide ${custom ? 'active' : ''}`} data-aoi="AOI_personalizuj" data-log="personalizuj" onClick={() => setCustom(!custom)}>
+              <button className={`btn-outline wide ${custom ? 'active' : ''}`} data-log="personalizuj" onClick={() => setCustom(!custom)}>
                 {custom ? t('personalizeDone') : t('personalize')}
               </button>
               <AnimatePresence initial={false}>
