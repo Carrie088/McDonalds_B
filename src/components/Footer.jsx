@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 export function ScanBox({ t }) {
   return (
-    <motion.div className="scan-box" whileTap={{ scale: 0.95 }}>
+    <motion.div className="scan-box" whileTap={{ scale: 0.95 }} data-aoi="AOI_aplikacja" data-log="zeskanuj_aplikacje">
       <span className="scan-ico">📱</span>
       <small>{t('haveApp')}</small>
       <b>{t('scan')}</b>
@@ -14,8 +14,8 @@ export function ScanBox({ t }) {
 export function FooterButtons({ t, reset, a11y, setA11y }) {
   return (
     <div className="footer-btns">
-      <button className="btn-outline sm" onClick={reset}>{t('restart')}</button>
-      <button className={`btn-outline sm ${a11y ? 'active' : ''}`} onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
+      <button className="btn-outline sm" data-aoi="AOI_restart" data-log="zacznij_od_nowa" onClick={() => reset('zacznij_od_nowa')}>{t('restart')}</button>
+      <button className={`btn-outline sm ${a11y ? 'active' : ''}`} data-aoi="AOI_dostepnosc" data-log="dostepnosc" onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
       <div className="copyright">© 2026 Kiosk Demo</div>
     </div>
   );

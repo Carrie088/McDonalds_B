@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { LANGS } from '../i18n.js';
 import Logo from '../components/Logo.jsx';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
+import { useBaseScreen } from '../logger.js';
 
 const card = {
   hidden: { y: 80, opacity: 0 },
@@ -9,6 +10,7 @@ const card = {
 };
 
 export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
+  useBaseScreen('opcja');
   return (
     <div className="page dine">
       <motion.div className="dine-logo" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }}>
@@ -26,6 +28,8 @@ export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
           <motion.button
             key={o.id}
             className="dine-card"
+            data-aoi="AOI_cel"
+            data-log={o.id === 'in' ? 'na_miejscu' : 'na_wynos'}
             custom={k}
             variants={card}
             initial="hidden"
@@ -41,11 +45,11 @@ export default function DineOption({ t, lang, setLang, onPick, ...rest }) {
         ))}
       </div>
 
-      <div className="langs">
+      <div className="langs" data-aoi="AOI_jezyk">
         <div className="langs-title">文A {t('availLangs')}</div>
         <div className="langs-row">
           {LANGS.map((l) => (
-            <button key={l.id} className={`lang-btn ${lang === l.id ? 'on' : ''}`} onClick={() => setLang(l.id)}>
+            <button key={l.id} data-log={`jezyk_${l.id}`} className={`lang-btn ${lang === l.id ? 'on' : ''}`} onClick={() => setLang(l.id)}>
               {l.label}
               {lang === l.id && <motion.span layoutId="lang-check" className="lang-check">✓</motion.span>}
             </button>

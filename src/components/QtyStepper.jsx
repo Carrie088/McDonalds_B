@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 export default function QtyStepper({ value, onChange, min = 1, large = false }) {
   return (
     <div className={`qty ${large ? 'qty-lg' : ''}`}>
-      <button className="qty-btn" disabled={value <= min} onClick={() => onChange(value - 1)}>−</button>
+      <button className="qty-btn" data-log="ilosc_minus" aria-label="−" disabled={value <= min} onClick={() => onChange(value - 1)}>−</button>
       <div className="qty-val">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
@@ -17,7 +17,7 @@ export default function QtyStepper({ value, onChange, min = 1, large = false }) 
           </motion.span>
         </AnimatePresence>
       </div>
-      <button className="qty-btn" onClick={() => onChange(value + 1)}>+</button>
+      <button className="qty-btn" data-log="ilosc_plus" aria-label="+" onClick={() => onChange(value + 1)}>+</button>
     </div>
   );
 }

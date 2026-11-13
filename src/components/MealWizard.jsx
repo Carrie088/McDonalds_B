@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MEAL_UPGRADE, canCustomize, extras, formatPrice, mealDrinkItems, mealSides, mealSizes, products,
@@ -6,6 +6,7 @@ import {
 import { tr, lineDetails } from '../menuI18n.js';
 import QtyStepper from './QtyStepper.jsx';
 import CustomizeChips from './CustomizeChips.jsx';
+import { slug, useOverlayScreen } from '../logger.js';
 
 // Pełnoekranowy kreator zestawu: 1) kanapka (+ personalizacja) → 2) dodatek i rozmiar → 3) napój → 4) podsumowanie.
 // `product` = zestaw z menu (meal: true) albo pojedynczy produkt, z którego robimy zestaw.
@@ -14,6 +15,8 @@ const STEP_MAIN = 0;
 const STEP_SIDE = 1;
 const STEP_DRINK = 2;
 const STEP_SUMMARY = 3;
+
+const STEP_SCREENS = ['zestaw_kanapka', 'zestaw_dodatek', 'zestaw_napoj', 'zestaw_podsumowanie'];
 
 const slide = {
   enter: (dir) => ({ x: dir > 0 ? 260 : -260, opacity: 0 }),
@@ -37,6 +40,8 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
   const [side, setSide] = useState(mealSides.find((s) => s.id === cfg.side) ?? null);
   const [drink, setDrink] = useState(mealDrinkItems.find((d) => d.id === cfg.drink) ?? null);
   const [qty, setQty] = useState(initial?.qty ?? cfg.qty ?? 1);
+  const boxRef = useRef(null);
+  useOverlayScreen(STEP_SCREENS[step], boxRef, `produkt=${product.id}${editing ? ' edycja=1' : ''}`);
 
   const basePrice = isSet ? product.price : main.price + MEAL_UPGRADE;
   const extrasPrice = extras.filter((e) => added.includes(e.id)).reduce((s, e) => s + e.price, 0);
@@ -73,6 +78,7 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
 
   return (
     <motion.div
+      ref={boxRef}
       className="wizard"
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
@@ -80,7 +86,7 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
       transition={{ type: 'spring', stiffness: 200, damping: 28 }}
     >
       <header className="wz-head">
-        <button className="wz-close" onClick={onClose} aria-label={t('cancel')}>✕</button>
+        <button className="wz-close" data-aoi="AOI_wstecz" data-log="zamknij" onClick={onClose} aria-label={t('cancel')}>✕</button>
         <div className="wz-title">
           <span className="wz-title-emoji" style={{ background: main.bg }}>{main.emoji}</span>
           <div>
@@ -88,10 +94,10 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
             <b>{title}</b>
           </div>
         </div>
-        <ol className="wz-steps">
+        <ol className="wz-steps" data-aoi="AOI_kroki">
           {steps.map((label, i) => (
             <li key={label} className={`${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`}>
-              <button disabled={i > step && !seenSummary} onClick={() => goTo(i)}>
+              <button data-log={`krok_${i + 1}`} disabled={i > step && !seenSummary} onClick={() => goTo(i)}>
                 <span className="wz-dot">{i < step ? '✓' : i + 1}</span>
                 {label}
               </button>
@@ -128,11 +134,11 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
                 {customizable ? (
                   <>
                     <p className="wz-q">{t('wantCustomize')}</p>
-                    <div className="wz-choice">
-                      <button className={`wz-opt ${!custom ? 'on' : ''}`} onClick={() => { setCustom(false); setRemoved([]); setAdded([]); next(); }}>
+                    <div className="wz-choice" data-aoi="AOI_personalizuj">
+                      <button data-log="personalizacja_nie" className={`wz-opt ${!custom ? 'on' : ''}`} onClick={() => { setCustom(false); setRemoved([]); setAdded([]); next(); }}>
                         <span>👍</span>{t('noThanks')}
                       </button>
-                      <button className={`wz-opt ${custom ? 'on' : ''}`} onClick={() => setCustom(true)}>
+                      <button data-log="personalizacja_tak" className={`wz-opt ${custom ? 'on' : ''}`} onClick={() => setCustom(true)}>
                         <span>✎</span>{t('yesCustomize')}
                       </button>
                     </div>
@@ -158,11 +164,11 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
             {step === STEP_SIDE && (
               <>
                 <h2 className="wz-h">{t('chooseSide')}</h2>
-                <div className="wz-size">
+                <div className="wz-size" data-aoi="AOI_rozmiar">
                   <span>{t('size')}</span>
                   <div className="wz-seg">
                     {mealSizes.map((s) => (
-                      <button key={s.id} className={size.id === s.id ? 'on' : ''} onClick={() => setSize(s)}>
+                      <button key={s.id} data-log={`rozmiar_${s.id}`} className={size.id === s.id ? 'on' : ''} onClick={() => setSize(s)}>
                         {size.id === s.id && <motion.span layoutId="wz-seg" className="wz-seg-bg" />}
                         <span className="wz-seg-label">
                           {s.name[lang]} {s.extra > 0 && <small>+{formatPrice(s.extra)}</small>}
@@ -171,9 +177,9 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
                     ))}
                   </div>
                 </div>
-                <div className="wz-grid">
+                <div className="wz-grid" data-aoi="AOI_wybor">
                   {mealSides.map((s, i) => (
-                    <Tile key={s.id} i={i} item={s} label={tr(s.name, lang)} on={side?.id === s.id} onClick={() => pickAndGo(setSide, s)} />
+                    <Tile key={s.id} log={`dodatek_zestawu_${s.id}`} i={i} item={s} label={tr(s.name, lang)} on={side?.id === s.id} onClick={() => pickAndGo(setSide, s)} />
                   ))}
                 </div>
               </>
@@ -182,9 +188,9 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
             {step === STEP_DRINK && (
               <>
                 <h2 className="wz-h">{t('drink')}</h2>
-                <div className="wz-grid three">
+                <div className="wz-grid three" data-aoi="AOI_wybor">
                   {mealDrinkItems.map((d, i) => (
-                    <Tile key={d.id} i={i} item={d} label={tr(d.id, lang)} on={drink?.id === d.id} onClick={() => pickAndGo(setDrink, d)} />
+                    <Tile key={d.id} log={`napoj_${slug(d.id)}`} i={i} item={d} label={tr(d.id, lang)} on={drink?.id === d.id} onClick={() => pickAndGo(setDrink, d)} />
                   ))}
                 </div>
               </>
@@ -193,10 +199,10 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
             {step === STEP_SUMMARY && (
               <>
                 <h2 className="wz-h">{t('mealSummary')}</h2>
-                <ul className="wz-summary">
-                  <SummaryRow emoji={main.emoji} bg={main.bg} label={tr(main.name, lang)} sub={mainDetails.join(', ') || (customizable ? t('noChanges') : '')} t={t} onChange={() => goTo(STEP_MAIN)} />
-                  <SummaryRow emoji={side.emoji} bg={side.bg} label={tr(side.name, lang)} sub={`${t('size')}: ${size.name[lang]}`} t={t} onChange={() => goTo(STEP_SIDE)} />
-                  <SummaryRow emoji={drink.emoji} bg={drink.bg} label={tr(drink.id, lang)} sub={size.name[lang]} t={t} onChange={() => goTo(STEP_DRINK)} />
+                <ul className="wz-summary" data-aoi="AOI_podsumowanie">
+                  <SummaryRow emoji={main.emoji} bg={main.bg} label={tr(main.name, lang)} sub={mainDetails.join(', ') || (customizable ? t('noChanges') : '')} t={t} log="zmien_kanapka" onChange={() => goTo(STEP_MAIN)} />
+                  <SummaryRow emoji={side.emoji} bg={side.bg} label={tr(side.name, lang)} sub={`${t('size')}: ${size.name[lang]}`} t={t} log="zmien_dodatek" onChange={() => goTo(STEP_SIDE)} />
+                  <SummaryRow emoji={drink.emoji} bg={drink.bg} label={tr(drink.id, lang)} sub={size.name[lang]} t={t} log="zmien_napoj" onChange={() => goTo(STEP_DRINK)} />
                 </ul>
                 <div className="wz-qty">
                   <span>{t('quantity')}</span>
@@ -209,18 +215,18 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
       </div>
 
       <footer className="wz-foot">
-        <button className="btn-outline lg" onClick={() => (step === STEP_MAIN ? onClose() : goTo(step - 1))}>
+        <button className="btn-outline lg" data-aoi="AOI_wstecz" data-log={step === STEP_MAIN ? 'anuluj' : 'wstecz'} onClick={() => (step === STEP_MAIN ? onClose() : goTo(step - 1))}>
           {step === STEP_MAIN ? t('cancel') : `← ${t('back')}`}
         </button>
-        <motion.div key={unitPrice * qty} className="wz-price" initial={{ scale: 1.15, color: '#d88a00' }} animate={{ scale: 1, color: '#1a1a1a' }}>
+        <motion.div key={unitPrice * qty} className="wz-price" data-aoi="AOI_suma" initial={{ scale: 1.15, color: '#d88a00' }} animate={{ scale: 1, color: '#1a1a1a' }}>
           {formatPrice(unitPrice * qty)}
         </motion.div>
         {step < STEP_SUMMARY ? (
-          <motion.button className="btn-yellow lg" disabled={!canNext} whileTap={{ scale: 0.96 }} onClick={next}>
+          <motion.button className="btn-yellow lg" data-aoi="AOI_cel" data-log="dalej" disabled={!canNext} whileTap={{ scale: 0.96 }} onClick={next}>
             {t('next')} →
           </motion.button>
         ) : (
-          <motion.button className="btn-yellow lg" whileTap={{ scale: 0.96 }} onClick={submit}>
+          <motion.button className="btn-yellow lg" data-aoi="AOI_cel" data-log={editing ? 'zapisz_zmiany' : 'dodaj_do_zamowienia'} whileTap={{ scale: 0.96 }} onClick={submit}>
             {editing ? t('saveChanges') : t('addToOrder')}
           </motion.button>
         )}
@@ -229,10 +235,11 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
   );
 }
 
-function Tile({ item, label, on, onClick, i }) {
+function Tile({ item, label, on, onClick, i, log }) {
   return (
     <motion.button
       className={`wz-tile ${on ? 'on' : ''}`}
+      data-log={log}
       onClick={onClick}
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0, transition: { delay: 0.05 * i } }}
@@ -250,7 +257,7 @@ function Tile({ item, label, on, onClick, i }) {
   );
 }
 
-function SummaryRow({ emoji, bg, label, sub, onChange, t }) {
+function SummaryRow({ emoji, bg, label, sub, onChange, t, log }) {
   return (
     <li>
       <span className="wz-sum-img" style={{ background: bg }}>{emoji}</span>
@@ -258,7 +265,7 @@ function SummaryRow({ emoji, bg, label, sub, onChange, t }) {
         <b>{label}</b>
         {sub && <small>{sub}</small>}
       </div>
-      <button className="btn-outline sm" onClick={onChange}>{t('change')}</button>
+      <button className="btn-outline sm" data-log={log} onClick={onChange}>{t('change')}</button>
     </li>
   );
 }

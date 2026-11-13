@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { formatPrice } from '../data.js';
 import { FooterButtons } from '../components/Footer.jsx';
+import { useBaseScreen } from '../logger.js';
 
 export default function Payment({ t, go, total, onPaid, ...rest }) {
   const [stage, setStage] = useState('choose'); // choose | tap | processing | ok
+  useBaseScreen({ choose: 'platnosc', tap: 'platnosc_terminal', processing: 'platnosc_przetwarzanie', ok: 'platnosc_zaakceptowana' }[stage]);
 
   // Symulacja terminala płatniczego
   useEffect(() => {
@@ -21,7 +23,7 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
 
   return (
     <div className="page payment">
-      <div className="pay-total">
+      <div className="pay-total" data-aoi="AOI_suma">
         <span>{t('total')}</span>
         <b>{formatPrice(total)}</b>
       </div>
@@ -38,6 +40,8 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
                 <motion.button
                   key={o.id}
                   className="pay-card"
+                  data-aoi="AOI_cel"
+                  data-log={`platnosc_${o.id}`}
                   initial={{ opacity: 0, y: 60 }}
                   animate={{ opacity: 1, y: 0, transition: { delay: 0.1 + k * 0.1, type: 'spring', stiffness: 200, damping: 20 } }}
                   whileTap={{ scale: 0.95 }}
@@ -49,13 +53,13 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
                 </motion.button>
               ))}
             </div>
-            <button className="btn-outline lg" onClick={() => go('cart')}>← {t('back')}</button>
+            <button className="btn-outline lg" data-aoi="AOI_wstecz" data-log="wstecz" onClick={() => go('cart')}>← {t('back')}</button>
           </motion.div>
         )}
 
         {stage === 'tap' && (
           <motion.div key="tap" className="pay-state" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
-            <div className="nfc">
+            <div className="nfc" data-aoi="AOI_terminal">
               {[0, 1, 2].map((k) => (
                 <motion.span
                   key={k}
@@ -68,7 +72,7 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
             </div>
             <h2>{t('tapCard')}</h2>
             <motion.div className="arrow-down" animate={{ y: [0, 24, 0] }} transition={{ repeat: Infinity, duration: 1.2 }}>⬇</motion.div>
-            <button className="btn-outline lg" onClick={() => setStage('choose')}>{t('cancel')}</button>
+            <button className="btn-outline lg" data-aoi="AOI_wstecz" data-log="anuluj_platnosc" onClick={() => setStage('choose')}>{t('cancel')}</button>
           </motion.div>
         )}
 

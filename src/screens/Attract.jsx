@@ -3,11 +3,13 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { attractSlides } from '../data.js';
 import { LANGS } from '../i18n.js';
 import { tr } from '../menuI18n.js';
+import { useBaseScreen } from '../logger.js';
 import Logo from '../components/Logo.jsx';
 
 export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
   const [i, setI] = useState(0);
   const [langOpen, setLangOpen] = useState(false);
+  useBaseScreen('start');
 
   useEffect(() => {
     const id = setInterval(() => setI((x) => (x + 1) % attractSlides.length), 5000);
@@ -18,7 +20,7 @@ export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
 
   return (
     <div className="attract" onClick={() => go('dine')}>
-      <div className="attract-hero">
+      <div className="attract-hero" data-log="pokaz_slajdow" data-label={tr(slide.title, lang)}>
         <AnimatePresence initial={false}>
           <motion.div
             key={i}
@@ -66,6 +68,8 @@ export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
         <div className="attract-right">
           <motion.button
             className="start-btn"
+            data-aoi="AOI_cel"
+            data-log="start"
             onClick={() => go('dine')}
             animate={{ boxShadow: ['0 0 0 0 rgba(255,199,44,0.7)', '0 0 0 26px rgba(255,199,44,0)'] }}
             transition={{ repeat: Infinity, duration: 1.8 }}
@@ -75,17 +79,17 @@ export default function Attract({ t, lang, setLang, go, a11y, setA11y }) {
             <span>{t('toStart')}</span>
           </motion.button>
           <div className="attract-small">
-            <button className="btn-outline" onClick={() => setLangOpen(!langOpen)}>
+            <button className="btn-outline" data-aoi="AOI_jezyk" data-log="jezyki" onClick={() => setLangOpen(!langOpen)}>
               <span className="ico">文A</span>
               <span><small>{t('languages')}</small><br /><b>EN UA</b></span>
             </button>
-            <button className={`btn-outline ${a11y ? 'active' : ''}`} onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
+            <button className={`btn-outline ${a11y ? 'active' : ''}`} data-aoi="AOI_dostepnosc" data-log="dostepnosc" onClick={() => setA11y(!a11y)}>♿ {t('a11y')}</button>
           </div>
           <AnimatePresence>
             {langOpen && (
-              <motion.div className="lang-pop" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
+              <motion.div className="lang-pop" data-aoi="AOI_jezyk_lista" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}>
                 {LANGS.map((l) => (
-                  <button key={l.id} className={`lang-btn ${lang === l.id ? 'on' : ''}`} onClick={() => { setLang(l.id); setLangOpen(false); }}>
+                  <button key={l.id} data-log={`jezyk_${l.id}`} className={`lang-btn ${lang === l.id ? 'on' : ''}`} onClick={() => { setLang(l.id); setLangOpen(false); }}>
                     {l.label}
                   </button>
                 ))}

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { categories, formatPrice, homeTiles, products, promos } from '../data.js';
 import Logo from '../components/Logo.jsx';
 import { tr } from '../menuI18n.js';
+import { useBaseScreen } from '../logger.js';
 import ProductModal from '../components/ProductModal.jsx';
 import MealWizard from '../components/MealWizard.jsx';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
@@ -23,6 +24,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
   const [flyer, setFlyer] = useState(null);
 
   const [wizard, setWizard] = useState(null);
+  useBaseScreen('menu', `kategoria=${cat}`);
 
   // Zestaw → pełnoekranowy kreator, pojedynczy produkt → okno produktu
   const open = (p) => (p.meal ? setWizard({ product: p }) : setSelected(p));
@@ -42,15 +44,15 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
 
   return (
     <div className="page menu">
-      <aside className="sidebar">
+      <aside className="sidebar" data-aoi="AOI_kategorie">
         <div className="side-logo"><Logo size={90} /></div>
         <div className="side-group">
-          <SideItem active={cat === 'home'} onClick={() => setCat('home')} emoji="📋" label={t('mainMenu')} bold />
-          <SideItem emoji="🧾" label={t('invoice')} />
+          <SideItem log="kategoria_home" active={cat === 'home'} onClick={() => setCat('home')} emoji="📋" label={t('mainMenu')} bold />
+          <SideItem log="faktura" emoji="🧾" label={t('invoice')} />
         </div>
         <div className="side-group scroll">
           {categories.map((c) => (
-            <SideItem key={c.id} active={cat === c.id} onClick={() => setCat(c.id)} emoji={c.emoji} label={c.name[lang]} />
+            <SideItem key={c.id} log={`kategoria_${c.id}`} active={cat === c.id} onClick={() => setCat(c.id)} emoji={c.emoji} label={c.name[lang]} />
           ))}
         </div>
       </aside>
@@ -68,12 +70,13 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             {cat === 'home' ? (
               <>
                 <h2 className="section-title">{t('checkMenu')}</h2>
-                <motion.div className="tiles" variants={grid} initial="hidden" animate="show">
+                <motion.div className="tiles" data-aoi="AOI_kafle" variants={grid} initial="hidden" animate="show">
                   {homeTiles.map((tile) => (
                     <motion.button
                       key={tile.cat}
                       variants={item}
                       className="tile"
+                      data-log={`kafel_${tile.cat}`}
                       style={{ background: tile.bg }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setCat(tile.cat)}
@@ -85,12 +88,13 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
                 </motion.div>
 
                 <h2 className="section-title">{t('tryNew')}</h2>
-                <motion.div className="promos" variants={grid} initial="hidden" animate="show">
+                <motion.div className="promos" data-aoi="AOI_promocje" variants={grid} initial="hidden" animate="show">
                   {promos.map((p) => (
                     <motion.button
                       key={p.productId}
                       variants={item}
                       className="promo"
+                      data-log={`promocja_${p.productId}`}
                       style={{ background: p.bg, color: p.color }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => openProduct(p.productId)}
@@ -107,12 +111,13 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             ) : (
               <>
                 <h2 className="section-title big">{catObj.name[lang]}</h2>
-                <motion.div className="products" variants={grid} initial="hidden" animate="show">
+                <motion.div className="products" data-aoi="AOI_produkty" variants={grid} initial="hidden" animate="show">
                   {list.map((p) => (
                     <motion.button
                       key={p.id}
                       variants={item}
                       className="product-card"
+                      data-log={`produkt_${p.id}`}
                       whileTap={{ scale: 0.94 }}
                       onClick={() => open(p)}
                     >
@@ -132,7 +137,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
       <div className="menu-bottom">
         <ScanBox t={t} />
         <div className="menu-bottom-right">
-          <div className="cart-row">
+          <div className="cart-row" data-aoi="AOI_koszyk">
             <div className="cart-ico">
               🛍️
               <motion.span
@@ -150,6 +155,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             </motion.div>
             <motion.button
               className="btn-yellow summary-btn"
+              data-log="przejdz_do_podsumowania"
               disabled={count === 0}
               onClick={() => go('cart')}
               animate={count > 0 ? { scale: [1, 1.05, 1] } : {}}
@@ -223,9 +229,9 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
   );
 }
 
-function SideItem({ active, onClick, emoji, label, bold }) {
+function SideItem({ active, onClick, emoji, label, bold, log }) {
   return (
-    <motion.button className={`side-item ${active ? 'active' : ''} ${bold ? 'bold' : ''}`} onClick={onClick} whileTap={{ scale: 0.95 }}>
+    <motion.button className={`side-item ${active ? 'active' : ''} ${bold ? 'bold' : ''}`} data-log={log} onClick={onClick} whileTap={{ scale: 0.95 }}>
       <span className="side-emoji">{emoji}</span>
       <span className="side-label">{label}</span>
       {active && <motion.span layoutId="side-indicator" className="side-indicator" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}

@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useOverlayScreen } from '../logger.js';
 
 export default function IdleModal({ t, onContinue, onReset }) {
   const [left, setLeft] = useState(15);
+  const boxRef = useRef(null);
+  useOverlayScreen('bezczynnosc', boxRef);
 
   useEffect(() => {
-    if (left <= 0) { onReset(); return; }
+    if (left <= 0) { onReset('bezczynnosc_czas'); return; }
     const id = setTimeout(() => setLeft((l) => l - 1), 1000);
     return () => clearTimeout(id);
   }, [left, onReset]);
@@ -13,7 +16,9 @@ export default function IdleModal({ t, onContinue, onReset }) {
   return (
     <motion.div className="backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <motion.div
+        ref={boxRef}
         className="dialog"
+        data-aoi="AOI_bezczynnosc"
         initial={{ scale: 0.85, y: 60, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.9, y: 40, opacity: 0 }}
@@ -34,8 +39,8 @@ export default function IdleModal({ t, onContinue, onReset }) {
         <h2>{t('moreTime')}</h2>
         <p>{t('moreTimeSub')} {left} s</p>
         <div className="dialog-actions">
-          <button className="btn-outline lg" onClick={onReset}>{t('noRestart')}</button>
-          <button className="btn-yellow lg" onClick={onContinue}>{t('yesMore')}</button>
+          <button className="btn-outline lg" data-log="bezczynnosc_od_nowa" onClick={() => onReset('bezczynnosc_przycisk')}>{t('noRestart')}</button>
+          <button className="btn-yellow lg" data-log="bezczynnosc_kontynuuj" onClick={onContinue}>{t('yesMore')}</button>
         </div>
       </motion.div>
     </motion.div>

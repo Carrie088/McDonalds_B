@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { formatPrice } from '../data.js';
 import Logo from '../components/Logo.jsx';
+import { useBaseScreen } from '../logger.js';
 
 const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
   x: Math.random() * 1080,
@@ -14,6 +15,7 @@ const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
 
 export default function Confirmation({ t, order, dine, reset }) {
   const [left, setLeft] = useState(20);
+  useBaseScreen('potwierdzenie');
 
   useEffect(() => {
     if (left <= 0) { reset(); return; }
@@ -41,7 +43,7 @@ export default function Confirmation({ t, order, dine, reset }) {
         {t('thanks')}
       </motion.h1>
 
-      <motion.div className="order-card" initial={{ y: 80, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ delay: 0.35, type: 'spring', stiffness: 180, damping: 18 }}>
+      <motion.div className="order-card" data-aoi="AOI_numer" initial={{ y: 80, opacity: 0, scale: 0.9 }} animate={{ y: 0, opacity: 1, scale: 1 }} transition={{ delay: 0.35, type: 'spring', stiffness: 180, damping: 18 }}>
         <span>{t('orderNo')}</span>
         <motion.b initial={{ scale: 0.3 }} animate={{ scale: 1 }} transition={{ delay: 0.6, type: 'spring', stiffness: 300, damping: 12 }}>
           {order?.number}
@@ -58,7 +60,7 @@ export default function Confirmation({ t, order, dine, reset }) {
         🧾 {t('takeReceipt')}
       </motion.p>
 
-      <motion.button className="btn-yellow lg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} onClick={reset}>
+      <motion.button className="btn-yellow lg" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} data-log="nowe_zamowienie" onClick={() => reset('po_zamowieniu')}>
         {t('newOrder')}
       </motion.button>
       <div className="done-count">{t('backIn')} {left} s</div>
