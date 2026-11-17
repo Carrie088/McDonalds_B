@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DEFAULTS, fileNameFor } from '../logger.js';
+import { sequenceFor } from './scenarios.js';
 import './admin.css';
 
-// Panel prowadzącego: dane uczestnika przed uruchomieniem kiosku.
-// Wartości startowe: parametry adresu (?interfejs=…&uczestnik=…) → ostatnio użyte → DEFAULTS.
+// Panel prowadzącego: dane uczestnika przed uruchomieniem sesji (sześć scenariuszy w kolejności AB/BA).
+// Wartości startowe: parametry adresu (?uczestnik=…&kolejnosc=…) → ostatnio użyte → DEFAULTS.
 const STORAGE_KEY = 'pun_panel_ostatnie';
+const INTERFEJS = DEFAULTS.interfejs;
 
 const readStored = () => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? {}; } catch { return {}; }
@@ -22,8 +24,6 @@ const normalizeCode = (v) => {
 
 const validate = (f) => {
   const e = {};
-  const n = Number(f.interfejs);
-  if (!Number.isInteger(n) || n < 1 || n > 10) e.interfejs = 'Numer interfejsu z Tabeli 1: od 1 do 10.';
   if (!/^P(0[1-9]|[1-9]\d)$/.test(f.uczestnik)) e.uczestnik = 'Kod uczestnika w formacie P01–P99 (nadaje prowadzący).';
   return e;
 };
@@ -53,37 +53,40 @@ export default function AdminSetup({ onStart }) {
     const stored = readStored();
     const pick = (k) => q.get(k) ?? stored[k] ?? DEFAULTS[k];
     return {
-      interfejs: String(pick('interfejs')),
+      interfejs: INTERFEJS,
       uczestnik: normalizeCode(q.get('uczestnik') ?? stored.uczestnik ?? ''),
-      wersja: pick('wersja'),
-      kolejnosc: pick('kolejnosc'),
-      scenariusz: q.get('scenariusz') ?? 'S1',
+      kolejnosc: pick('kolejnosc') === 'BA' ? 'BA' : 'AB',
     };
   }, []);
 
   const [form, setForm] = useState(initial);
   const [fullscreen, setFullscreen] = useState(true);
   const [touched, setTouched] = useState(false);
-  const [fileInfo, setFileInfo] = useState(null); // { istnieje, wiersze } | { blad: true }
+  const [fileInfo, setFileInfo] = useState(null); // [{ nazwa, istnieje, wiersze }] | { blad: true }
   const [starting, setStarting] = useState(false);
 
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   const errors = validate(form);
   const valid = Object.keys(errors).length === 0;
-  const fileName = valid ? fileNameFor(form) : null;
+  const steps = sequenceFor(form.kolejnosc);
+  const fileNames = valid ? form.kolejnosc.split('').map((wersja) => fileNameFor({ ...form, wersja })) : [];
+  const filesKey = fileNames.join('|');
 
-  // Czy plik tego uczestnika i wersji już istnieje (serwer Vite)
+  // Czy pliki tego uczestnika (wersja A i B) już istnieją (serwer Vite)
   useEffect(() => {
-    if (!fileName) { setFileInfo(null); return undefined; }
+    if (!filesKey) { setFileInfo(null); return undefined; }
     let cancelled = false;
     const id = setTimeout(() => {
-      fetch(`/api/zdarzenia?nazwa=${encodeURIComponent(fileName)}`)
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
-        .then((info) => { if (!cancelled) setFileInfo(info); })
+      Promise.all(filesKey.split('|').map((nazwa) =>
+        fetch(`/api/zdarzenia?nazwa=${encodeURIComponent(nazwa)}`)
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+          .then((info) => ({ nazwa, ...info }))))
+        .then((list) => { if (!cancelled) setFileInfo(list); })
         .catch(() => { if (!cancelled) setFileInfo({ blad: true }); });
     }, 200);
     return () => { cancelled = true; clearTimeout(id); };
-  }, [fileName]);
+  }, [filesKey]);
+  const existing = Array.isArray(fileInfo) ? fileInfo.filter((f) => f.istnieje) : [];
 
   const scaling = Math.round(window.devicePixelRatio * 100);
   const screenSize = `${window.screen.width} × ${window.screen.height}`;
@@ -93,8 +96,8 @@ export default function AdminSetup({ onStart }) {
     setTouched(true);
     if (!valid || starting) return;
     setStarting(true);
-    writeStored({ interfejs: form.interfejs, uczestnik: form.uczestnik, wersja: form.wersja, kolejnosc: form.kolejnosc });
-    await onStart({ ...form, interfejs: Number(form.interfejs) }, fullscreen);
+    writeStored({ uczestnik: form.uczestnik, kolejnosc: form.kolejnosc });
+    await onStart({ ...form, interfejs: Number(INTERFEJS) }, fullscreen);
   };
 
   const showErr = (k) => touched && errors[k];
@@ -105,24 +108,10 @@ export default function AdminSetup({ onStart }) {
         <header className="adm-head">
           <span className="adm-badge">Panel prowadzącego</span>
           <h1>Nowa sesja badania</h1>
-          <p>Wpisz dane uczestnika. Kiosk uruchomi się po zatwierdzeniu, a od tej chwili każde dotknięcie trafia do pliku zdarzeń.</p>
+          <p>Wpisz dane uczestnika. Sesja obejmuje sześć scenariuszy; przed każdym wyświetli się instrukcja, a scenariusz kończy przycisk „Przejdź dalej”.</p>
         </header>
 
         <div className="adm-grid">
-          <label className="adm-field">
-            <span>Numer interfejsu</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              inputMode="numeric"
-              value={form.interfejs}
-              onChange={(e) => set('interfejs')(e.target.value)}
-              aria-invalid={Boolean(showErr('interfejs'))}
-            />
-            <small className={showErr('interfejs') ? 'adm-err' : ''}>{showErr('interfejs') || 'Z Tabeli 1 harmonogramu (1–10).'}</small>
-          </label>
-
           <label className="adm-field">
             <span>Kod uczestnika</span>
             <input
@@ -140,32 +129,24 @@ export default function AdminSetup({ onStart }) {
           </label>
 
           <div className="adm-field">
-            <span>Badana wersja</span>
-            <Segmented name="Wersja" value={form.wersja} options={['A', 'B']} onChange={set('wersja')} />
-          </div>
-
-          <div className="adm-field">
             <span>Kolejność wersji w sesji</span>
             <Segmented name="Kolejność" value={form.kolejnosc} options={['AB', 'BA']} onChange={set('kolejnosc')} />
-          </div>
-
-          <div className="adm-field adm-wide">
-            <span>Pierwszy scenariusz</span>
-            <Segmented name="Scenariusz" value={form.scenariusz} options={['S1', 'S2', 'S3']} onChange={set('scenariusz')} />
-            <small>Kolejne scenariusze numerują się same. Zwykle zaczynasz od S1.</small>
+            <small className="adm-seq">{steps.map((s) => `S${s.n}(${s.wersja})`).join(' → ')}</small>
           </div>
         </div>
 
         <section className="adm-status" aria-live="polite">
           <div className="adm-row">
-            <span>Plik zdarzeń</span>
-            <b className="adm-mono">{fileName ? `zdarzenia/${fileName}` : '—'}</b>
+            <span>Pliki zdarzeń</span>
+            <b className="adm-mono">
+              {fileNames.length ? fileNames.map((f) => <span key={f} className="adm-file">zdarzenia/{f}</span>) : '—'}
+            </b>
           </div>
-          {fileInfo && !fileInfo.blad && (
-            <p className={`adm-note ${fileInfo.istnieje ? 'warn' : 'ok'}`}>
-              {fileInfo.istnieje
-                ? `Ten plik już istnieje (${fileInfo.wiersze} zdarzeń). Nowa sesja zostanie dopisana na jego końcu — sprawdź, czy kod uczestnika i wersja są poprawne.`
-                : 'Nowy plik — zostanie utworzony przy pierwszym zapisie.'}
+          {Array.isArray(fileInfo) && (
+            <p className={`adm-note ${existing.length ? 'warn' : 'ok'}`}>
+              {existing.length
+                ? `Już istnieje: ${existing.map((f) => `${f.nazwa} (${f.wiersze} zdarzeń)`).join(', ')}. Nowa sesja zostanie dopisana na końcu — sprawdź, czy kod uczestnika jest poprawny.`
+                : 'Nowe pliki — zostaną utworzone przy pierwszym zapisie.'}
             </p>
           )}
           {fileInfo?.blad && (
@@ -182,12 +163,10 @@ export default function AdminSetup({ onStart }) {
         <section className="adm-keys">
           <h2>Sterowanie w trakcie sesji (klawiatura)</h2>
           <ul>
-            <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy)</li>
-            <li><kbd>0</kbd> przerwanie bieżącego scenariusza (sukces = 0)</li>
             <li><kbd>T</kbd> natychmiastowe ostrzeżenie o bezczynności (test limitu czasu)</li>
-            <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> powrót do tego panelu (zapisuje plik)</li>
+            <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> przerwanie sesji i powrót do tego panelu (zapisuje plik)</li>
           </ul>
-          <p>Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego i kończy się potwierdzeniem zamówienia.</p>
+          <p>Scenariusz zaczyna się przyciskiem „Rozpocznij scenariusz” i kończy wyłącznie przyciskiem „Przejdź dalej” w prawym dolnym rogu. Złożenie zamówienia nie kończy scenariusza, a kolumna „sukces” zostaje pusta do oceny przez prowadzącego.</p>
         </section>
 
         <footer className="adm-foot">
@@ -196,7 +175,7 @@ export default function AdminSetup({ onStart }) {
             Pełny ekran (wymagany do poprawnych współrzędnych)
           </label>
           <button type="submit" className="adm-start" disabled={starting}>
-            {starting ? 'Uruchamianie…' : 'Uruchom kiosk'}
+            {starting ? 'Uruchamianie…' : 'Rozpocznij sesję'}
           </button>
         </footer>
       </form>

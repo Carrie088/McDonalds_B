@@ -41,24 +41,28 @@ Obrazki są emoji – możesz je zamienić na zdjęcia (np. `<img>` w `Menu.jsx`
 
 ## Rejestr zdarzeń (badanie)
 Format zgodny ze słownikiem `PUN_slownik_zmiennych.csv` (plik PUN_zdarzenia):
-jeden plik na uczestnika i wersję, `zdarzenia/PUN_zdarzenia_I06_P01_A.csv`, UTF-8 z BOM, separator `;`.
-Scenariusze S1, S2, S3 dopisują się kolejno do tego samego pliku.
+jeden plik na uczestnika i wersję, `zdarzenia/PUN_zdarzenia_I02_P01_A.csv`, UTF-8 z BOM, separator `;`.
+Scenariusze S1, S2, S3 danej wersji dopisują się kolejno do tego samego pliku.
 
-Po uruchomieniu kiosku najpierw pokazuje się **panel prowadzącego**: numer interfejsu, kod uczestnika
-(P01–P99), wersja (A/B), kolejność (AB/BA) i pierwszy scenariusz. Panel pokazuje nazwę pliku, ostrzega,
-gdy plik tego uczestnika i wersji już istnieje (nowa sesja dopisze się na końcu), i sprawdza skalowanie systemu.
-„Uruchom kiosk” włącza pełny ekran i dopiero wtedy zaczyna się rejestrowanie.
-Pola można wypełnić z adresu, np. `?interfejs=6&uczestnik=P02&wersja=B&kolejnosc=BA`.
+Po uruchomieniu najpierw pokazuje się **panel prowadzącego**: kod uczestnika (P01–P99)
+i kolejność wersji (AB/BA). Panel pokazuje sekwencję scenariuszy i nazwy obu plików, ostrzega, gdy któryś
+już istnieje (nowa sesja dopisze się na końcu), i sprawdza skalowanie systemu.
+„Rozpocznij sesję” włącza pełny ekran i dopiero wtedy zaczyna się rejestrowanie.
+Pola można wypełnić z adresu, np. `?uczestnik=P02&kolejnosc=BA`.
+
+Sesja to sześć scenariuszy: AB = S1(A) → S2(A) → S3(A) → S1(B) → S2(B) → S3(B), BA – odwrotna kolejność wersji.
+Przed każdym scenariuszem wyświetla się jego opis i przycisk „Rozpocznij scenariusz” (nic nie startuje samo).
+W trakcie scenariusza w prawym dolnym rogu ekranu jest przycisk **„Przejdź dalej”** – jedyny sposób zakończenia
+scenariusza: zapisuje `scenariusz_koniec` (kolumna `sukces` pusta – ocenia prowadzący), resetuje kiosk
+i pokazuje kolejną instrukcję. Złożenie zamówienia zapisuje tylko wiersz `zamowienie`. Po szóstym scenariuszu
+pojawia się ekran „Badanie zostało zakończone. Dziękujemy za udział!” z powrotem do panelu.
+Treści scenariuszy: `src/admin/scenarios.js`. Dotknięcia instrukcji i „Przejdź dalej” nie trafiają do rejestru.
 
 Sterowanie przez prowadzącego (klawiatura):
-- `1`, `2`, `3` – start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy),
-- `0` – przerwanie bieżącego scenariusza (`scenariusz_koniec`, sukces = 0),
 - `T` – natychmiastowe ostrzeżenie o bezczynności (test limitu czasu),
-- `Ctrl` + `Shift` + `A` – powrót do panelu prowadzącego (zapisuje plik).
+- `Ctrl` + `Shift` + `A` – przerwanie sesji i powrót do panelu prowadzącego (zapisuje plik).
 
-Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego (kolejny numer),
-a kończy się potwierdzeniem zamówienia (sukces = 1). „Zacznij od nowa” i upływ limitu czasu
-nie kończą scenariusza (limit czasu to wiersz `blad`), ale dopisują rejestr do pliku.
+„Zacznij od nowa” i upływ limitu czasu nie kończą scenariusza (limit czasu to wiersz `blad`), ale dopisują rejestr do pliku.
 
 AOI (wspólna lista): `AOI_cel`, `AOI_wstecz`, `AOI_dostepnosc`, `AOI_blad` – atrybut `data-aoi`;
 nazwa elementu – atrybut `data-log`. Do poprawnych współrzędnych: pełny ekran (F11) i skalowanie systemu 100%.

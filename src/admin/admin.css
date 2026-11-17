@@ -71,6 +71,42 @@ kbd {
 .adm-start:active { transform: translateY(2px); box-shadow: 0 2px 0 #f0b400; }
 .adm-start:disabled { opacity: 0.6; }
 
+.adm-seq { font-family: ui-monospace, Consolas, monospace; color: #3a3a3a; }
+.adm-file { display: block; }
+
+/* Ekrany sesji: instrukcja scenariusza i koniec badania */
+.ses {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: radial-gradient(circle at 20% 0%, #2a2a2a 0%, #111 60%);
+  font-family: 'Poppins', system-ui, sans-serif; color: #1a1a1a;
+}
+.ses-card {
+  width: 100%; max-width: 720px; background: #fff; border-radius: 18px; padding: 44px 48px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45); display: flex; flex-direction: column; align-items: flex-start; gap: 14px;
+}
+.ses-meta { font-size: 15px; font-weight: 600; color: #6b6b6b; }
+.ses-card h1 { font-size: 34px; line-height: 1.2; letter-spacing: -0.5px; }
+.ses-text { font-size: 24px; line-height: 1.5; }
+.ses-hint { font-size: 16px; color: #5b5b5b; line-height: 1.5; }
+.ses-btn { margin-top: 14px; font-size: 22px; padding: 20px 40px; }
+.ses-done-ico {
+  width: 72px; height: 72px; border-radius: 50%; background: #ffc72c; display: flex; align-items: center;
+  justify-content: center; font-size: 38px; font-weight: 800;
+}
+.ses-back {
+  margin-top: 10px; font-size: 16px; font-weight: 600; padding: 14px 24px; border-radius: 10px;
+  border: 2px solid #d9dde2; background: #fff;
+}
+.ses-back:focus-visible, .ses-next:focus-visible { outline: 3px solid #ffc72c; outline-offset: 2px; }
+
+.ses-next {
+  position: fixed; right: 24px; bottom: 24px; z-index: 1000; min-width: 180px; min-height: 64px; padding: 0 26px;
+  border-radius: 32px; background: rgba(40, 40, 40, 0.85); color: #fff; font-family: 'Poppins', system-ui, sans-serif;
+  font-size: 20px; font-weight: 600; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.ses-next:active { transform: translateY(2px); }
+.ses-next:disabled { opacity: 0.5; }
+
 @media (max-width: 640px) {
   .adm-grid { grid-template-columns: 1fr; padding: 20px; }
   .adm-head, .adm-keys { padding-left: 20px; padding-right: 20px; }

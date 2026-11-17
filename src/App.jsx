@@ -14,7 +14,7 @@ import Menu from './screens/Menu.jsx';
 import Cart from './screens/Cart.jsx';
 import Payment from './screens/Payment.jsx';
 import Confirmation from './screens/Confirmation.jsx';
-import { endScenario, flush, isActive, logError, refreshAois, setResetHandler } from './logger.js';
+import { flush, isActive, logError, logOrder, refreshAois, setResetHandler } from './logger.js';
 
 // Wersja B: dłuższy czas na zamówienie i dłuższe ostrzeżenie przed jego anulowaniem;
 // opcja „Więcej czasu” (B+) wydłuża go jeszcze bardziej
@@ -67,8 +67,7 @@ export default function App({ version = 'A' }) {
     [screen]
   );
 
-  // Powrót do ekranu startowego. Anulowanie zamówienia przez uczestnika nie kończy scenariusza
-  // (koniec = potwierdzenie albo przerwanie przez prowadzącego), ale dopisuje rejestr do pliku.
+  // Powrót do ekranu startowego. Nie kończy scenariusza (koniec = „Przejdź dalej”), ale dopisuje rejestr do pliku.
   const reset = useCallback((reason) => {
     if (reason === 'limit_czasu') logError('LIMIT_CZASU', `${t('moreTimeSub')} 0 s`);
     setDir(-1);
@@ -131,11 +130,11 @@ export default function App({ version = 'A' }) {
     go('done');
   };
 
-  // Potwierdzenie zamówienia = koniec scenariusza (po zalogowaniu ekranu potwierdzenia), zapis pliku
+  // Potwierdzenie zamówienia trafia do rejestru, ale scenariusz trwa do „Przejdź dalej”
   useEffect(() => {
     if (screen === 'done' && order && isActive()) {
       const items = cart.map((l) => `${l.qty}x${l.product.id}`).join(',');
-      endScenario({ sukces: 1, opis: `zamowienie=${order.number} platnosc=${order.method} suma_gr=${Math.round(order.total * 100)} na_wynos=${dine === 'out' ? 1 : 0} pozycje=${items}` });
+      logOrder(`zamowienie=${order.number} platnosc=${order.method} suma_gr=${Math.round(order.total * 100)} na_wynos=${dine === 'out' ? 1 : 0} pozycje=${items}`);
     }
   }, [screen, order]); // eslint-disable-line react-hooks/exhaustive-deps
 

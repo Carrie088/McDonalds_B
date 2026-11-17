@@ -1,20 +1,20 @@
 // Moduł rejestrowania zdarzeń do badania — format i słownik: PUN_slownik_zmiennych.csv (plik PUN_zdarzenia).
 //
 // • Jeden plik na uczestnika i wersję: zdarzenia/PUN_zdarzenia_I{interfejs}_{uczestnik}_{wersja}.csv
-//   (UTF-8 z BOM, separator średnik). Kolejne scenariusze S1, S2, S3 dopisują się do tego samego pliku.
-// • Dane uczestnika wpisuje prowadzący w panelu przed uruchomieniem kiosku (src/admin/AdminSetup.jsx → configure()).
+//   (UTF-8 z BOM, separator średnik). Scenariusze S1, S2, S3 danej wersji dopisują się do tego samego pliku.
+// • Dane uczestnika wpisuje prowadzący w panelu przed uruchomieniem sesji (src/admin/AdminSetup.jsx → configure()).
 //   Do tego czasu nic nie jest rejestrowane. Ctrl+Shift+A wraca do panelu (shutdown()).
-// • Scenariusz zaczyna się:
-//     – klawiszem prowadzącego 1, 2 lub 3 (start S1/S2/S3; kiosk wraca na ekran startowy), albo
-//     – pierwszym dotknięciem ekranu startowego, gdy żaden scenariusz nie trwa (kolejny numer).
-//   Kończy się potwierdzeniem zamówienia (sukces = 1) albo klawiszem 0 prowadzącego (przerwanie, sukces = 0).
+// • Sesja to sześć scenariuszy w kolejności AB albo BA (src/main.jsx). Scenariusz zaczyna przycisk
+//   „Rozpocznij scenariusz” (beginStep() + startScenario()), a kończy wyłącznie „Przejdź dalej” (endScenario()).
+//   Kolumnę `sukces` uzupełnia prowadzący podczas analizy; potwierdzenie zamówienia to osobny wiersz `zamowienie`.
 // • Plik zapisuje się (dopisuje nowe wiersze) przy końcu scenariusza, przy anulowaniu zamówienia przez
 //   uczestnika („Zacznij od nowa”, upływ limitu czasu) i przy zamknięciu strony.
+// • Elementy z atrybutem data-nolog (ekrany instrukcji, „Przejdź dalej”) nie są rejestrowane jako dotknięcia.
 
 import { useEffect, useRef } from 'react';
 import { useIsPresent } from 'framer-motion';
 
-const DEFAULTS = { interfejs: '6', uczestnik: 'P01', wersja: 'A', kolejnosc: 'AB', scenariusz: 'S1' };
+const DEFAULTS = { interfejs: '2', uczestnik: 'P01', kolejnosc: 'AB' };
 
 const COLUMNS = [
   'interfejs', 'uczestnik', 'wersja', 'kolejnosc', 'scenariusz', 'czas_lokalny', 'czas_epoch_ms', 'czas_ms',
@@ -33,7 +33,6 @@ let fileName = '';
 
 let rows = []; // wiersze jeszcze niezapisane do pliku
 let scenario = ''; // bieżący (albo ostatni) scenariusz; puste przed pierwszym startem
-let nextScenario = 1;
 let active = false; // czy trwa scenariusz
 let t0 = 0;
 
@@ -252,9 +251,7 @@ window.addEventListener('resize', () => {
 const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]';
 
 function onPointerDown(e) {
-  if (!enabled) return;
-  // Brak trwającego scenariusza + dotknięcie ekranu startowego → start kolejnego scenariusza
-  if (!active && base.name === 'start' && overlays.length === 0) startScenario(nextScenario, 'start=dotkniecie');
+  if (!enabled || e.target.closest?.('[data-nolog]')) return;
   const el = e.target.closest?.(INTERACTIVE);
   const aoiEl = e.target.closest?.('[data-aoi]');
   const disabled = Boolean(el?.disabled || el?.getAttribute?.('aria-disabled') === 'true');
@@ -272,9 +269,8 @@ function onPointerDown(e) {
 
 // ---------- scenariusze ----------
 export function startScenario(n, opis = '') {
-  if (active) endScenario({ sukces: 0, opis: `przerwano=start_S${n}` });
+  if (active) endScenario({ opis: `przerwano=start_S${n}` });
   scenario = `S${n}`;
-  nextScenario = n + 1;
   active = true;
   t0 = Date.now();
   push({ zdarzenie: 'scenariusz_start', ekran: '', opis }, t0);
@@ -285,8 +281,8 @@ export function startScenario(n, opis = '') {
   }
 }
 
-// Koniec zadania: potwierdzenie (sukces = 1) albo przerwanie przez prowadzącego (sukces = 0). Zapisuje plik.
-export function endScenario({ sukces, opis = '' }) {
+// Koniec zadania. `sukces` zostaje pusty, chyba że prowadzący poda go jawnie. Zapisuje plik.
+export function endScenario({ sukces = '', opis = '' } = {}) {
   if (!active) return;
   completeSettle();
   push({ zdarzenie: 'scenariusz_koniec', sukces, opis });
@@ -295,6 +291,31 @@ export function endScenario({ sukces, opis = '' }) {
 }
 
 export const isActive = () => active;
+
+// Potwierdzenie zamówienia w kiosku — nie kończy scenariusza
+export function logOrder(opis) {
+  push({ zdarzenie: 'zamowienie', opis });
+}
+
+// Przed kolejnym scenariuszem: plik właściwej wersji i czysty stan ekranów (kiosk montuje się od nowa)
+export function beginStep(wersja) {
+  if (!enabled) return;
+  if (active) endScenario({ opis: 'przerwano=nowy_krok' });
+  if (meta.wersja !== wersja) {
+    flush();
+    meta = { ...meta, wersja };
+    fileName = fileNameFor(meta);
+    scenario = '';
+    push({ zdarzenie: 'sesja', ekran: '', opis: sessionInfo() });
+  }
+  overlays.length = 0;
+  base = { name: 'start', opis: '', el: null };
+  lastEkran = '';
+  if (settle) clearTimeout(settle.timer);
+  settle = null;
+  tracked.clear();
+  pending.clear();
+}
 
 // Kiosk prosi o powrót do ekranu startowego przy starcie scenariusza klawiszem
 export function setResetHandler(fn) { resetHandler = fn; }
@@ -339,13 +360,15 @@ export function flush({ beacon = false } = {}) {
 }
 
 // ---------- sesja (panel prowadzącego) ----------
-// Start rejestrowania dla uczestnika: { interfejs, uczestnik, wersja, kolejnosc, scenariusz } → wiersz `sesja`
+const sessionInfo = () =>
+  `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`;
+
+// Start rejestrowania dla uczestnika: { interfejs, uczestnik, wersja (pierwsza w kolejności), kolejnosc } → wiersz `sesja`
 export function configure(cfg) {
   if (enabled) shutdown('panel');
   meta = { interfejs: String(cfg.interfejs), uczestnik: cfg.uczestnik, wersja: cfg.wersja, kolejnosc: cfg.kolejnosc };
   fileName = fileNameFor(cfg);
   scenario = '';
-  nextScenario = Number(String(cfg.scenariusz).replace(/\D/g, '')) || 1;
   active = false;
   rows = [];
   lastEkran = '';
@@ -353,17 +376,13 @@ export function configure(cfg) {
   pending.clear();
   settle = null;
   enabled = true;
-  push({
-    zdarzenie: 'sesja',
-    ekran: '',
-    opis: `skalowanie=${Math.round(window.devicePixelRatio * 100)}% okno=${window.innerWidth}x${window.innerHeight} ekran=${window.screen.width}x${window.screen.height}`,
-  });
+  push({ zdarzenie: 'sesja', ekran: '', opis: sessionInfo() });
 }
 
 // Koniec rejestrowania (powrót do panelu): trwający scenariusz zostaje przerwany, reszta trafia do pliku
 export function shutdown(reason = 'panel') {
   if (!enabled) return;
-  if (active) endScenario({ sukces: 0, opis: `przerwano=${reason}` });
+  if (active) endScenario({ opis: `przerwano=${reason}` });
   else flush();
   enabled = false;
   overlays.length = 0;
@@ -376,14 +395,6 @@ export function shutdown(reason = 'panel') {
 export const currentFileName = () => fileName;
 
 document.addEventListener('pointerdown', onPointerDown, true);
-
-// Klawisze prowadzącego: 1–3 = start scenariusza S1–S3, 0 (albo Esc poza pełnym ekranem) = przerwanie scenariusza
-window.addEventListener('keydown', (e) => {
-  if (!enabled || e.ctrlKey || e.altKey || e.metaKey) return;
-  if (e.target.closest?.('input, textarea')) return;
-  if (/^[1-3]$/.test(e.key)) startScenario(Number(e.key), 'start=prowadzacy');
-  else if (e.key === '0' || e.key === 'Escape') endScenario({ sukces: 0, opis: 'przerwano=prowadzacy' });
-});
 
 // Błąd JavaScript → wiersz blad z kodem JS
 window.addEventListener('error', (e) => { if (enabled) logError('JS', e.message); });
