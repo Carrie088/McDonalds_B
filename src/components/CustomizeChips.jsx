@@ -1,9 +1,11 @@
 import { extras, formatPrice } from '../data.js';
 import { tr } from '../menuI18n.js';
 import { slug } from '../logger.js';
+import { useA11y } from '../a11y.js';
 
 // Wybór składników do usunięcia i płatnych dodatków — wspólny dla okna produktu i kreatora zestawu
 export default function CustomizeChips({ product, removed, setRemoved, added, setAdded, t, lang }) {
+  const { vb } = useA11y();
   const toggle = (setList, id) => setList((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
 
   return (
@@ -20,7 +22,7 @@ export default function CustomizeChips({ product, removed, setRemoved, added, se
       <div className="chip-row wrap">
         {extras.map((e) => (
           <button key={e.id} data-log={`dodatek_${e.id}`} className={`chip ${added.includes(e.id) ? 'on' : ''}`} onClick={() => toggle(setAdded, e.id)}>
-            + {tr(e.name, lang)} <small>{formatPrice(e.price)}</small>
+            {vb && added.includes(e.id) ? '✓' : '+'} {tr(e.name, lang)} <small>{formatPrice(e.price)}</small>
           </button>
         ))}
       </div>

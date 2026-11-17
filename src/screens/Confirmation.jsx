@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { formatPrice } from '../data.js';
 import Logo from '../components/Logo.jsx';
 import { useBaseScreen } from '../logger.js';
+import { useA11y } from '../a11y.js';
 
 const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
   x: Math.random() * 1080,
@@ -14,7 +15,8 @@ const CONFETTI = Array.from({ length: 36 }, (_, i) => ({
 }));
 
 export default function Confirmation({ t, order, dine, reset }) {
-  const [left, setLeft] = useState(20);
+  const { vb } = useA11y();
+  const [left, setLeft] = useState(vb ? 30 : 20);
   const screenRef = useBaseScreen('potwierdzenie');
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function Confirmation({ t, order, dine, reset }) {
         />
       ))}
 
-      <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }}>
+      <motion.div className="done-logo" initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 12 }}>
         <Logo size={160} />
       </motion.div>
       <motion.h1 className="title-xxl" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>

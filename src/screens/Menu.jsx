@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { categories, formatPrice, homeTiles, products, promos } from '../data.js';
 import Logo from '../components/Logo.jsx';
@@ -8,6 +8,7 @@ import ErrorNote, { useErrorNote } from '../components/ErrorNote.jsx';
 import ProductModal from '../components/ProductModal.jsx';
 import MealWizard from '../components/MealWizard.jsx';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
+import { useA11y } from '../a11y.js';
 
 const grid = {
   hidden: {},
@@ -27,6 +28,19 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
   const [wizard, setWizard] = useState(null);
   const screenRef = useBaseScreen('menu', `kategoria=${cat}`);
   const [err, showErr, hideErr] = useErrorNote();
+  const cartRef = useRef(null);
+  const { vb, say } = useA11y();
+
+  // W wersji B ikona koszyka zmienia położenie (pasek etapów, większy tekst, zasięg) — mierzymy ją
+  const flyTarget = () => {
+    const c = cartRef.current;
+    const p = screenRef.current;
+    if (!vb || !c || !p) return { left: 430, top: 1640 };
+    const cr = c.getBoundingClientRect();
+    const pr = p.getBoundingClientRect();
+    const k = pr.width / p.offsetWidth;
+    return { left: (cr.left - pr.left) / k, top: (cr.top - pr.top) / k };
+  };
 
   // Zestaw → pełnoekranowy kreator, pojedynczy produkt → okno produktu
   const open = (p) => (p.meal ? setWizard({ product: p }) : setSelected(p));
@@ -37,8 +51,9 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
     addToCart(line);
     setSelected(null);
     setWizard(null);
-    setFlyer({ key: Date.now(), emoji: line.product.emoji });
+    setFlyer({ key: Date.now(), emoji: line.product.emoji, to: flyTarget() });
     setToast({ key: Date.now(), text: `${line.qty}× ${tr(line.product.name, lang)}` });
+    say(`${t('added')}: ${line.qty} × ${tr(line.product.name, lang)}.`);
     setTimeout(() => setToast(null), 2200);
   };
 
@@ -142,8 +157,9 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
         <div className="menu-bottom-right">
           <ErrorNote err={err} />
           <div className="cart-row">
-            <div className="cart-ico">
+            <div className="cart-ico" ref={cartRef}>
               🛍️
+              {vb && <span className="cart-ico-label">{t('cartLabel')}</span>}
               <motion.span
                 key={count}
                 className="cart-badge"
@@ -181,7 +197,7 @@ export default function Menu({ t, lang, go, count, subtotal, addToCart, ...rest 
             key={flyer.key}
             className="flyer"
             initial={{ left: 640, top: 760, scale: 3, opacity: 1 }}
-            animate={{ left: 430, top: 1640, scale: 0.6, opacity: [1, 1, 0] }}
+            animate={{ left: flyer.to.left, top: flyer.to.top, scale: 0.6, opacity: [1, 1, 0] }}
             transition={{ duration: 0.75, ease: [0.5, 0, 0.75, 0] }}
             onAnimationComplete={() => setFlyer(null)}
           >

@@ -35,7 +35,7 @@ function Root() {
     setSession({ ...cfg, startedAt: Date.now() });
   };
 
-  return session ? <App key={session.startedAt} /> : <AdminSetup onStart={start} />;
+  return session ? <App key={session.startedAt} version={session.wersja} /> : <AdminSetup onStart={start} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

@@ -184,6 +184,7 @@ export default function AdminSetup({ onStart }) {
           <ul>
             <li><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy)</li>
             <li><kbd>0</kbd> przerwanie bieżącego scenariusza (sukces = 0)</li>
+            <li><kbd>T</kbd> natychmiastowe ostrzeżenie o bezczynności (test limitu czasu)</li>
             <li><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> powrót do tego panelu (zapisuje plik)</li>
           </ul>
           <p>Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego i kończy się potwierdzeniem zamówienia.</p>

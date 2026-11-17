@@ -8,12 +8,17 @@ import { tr, lineDetails } from '../menuI18n.js';
 import { FooterButtons, ScanBox } from '../components/Footer.jsx';
 import { useBaseScreen } from '../logger.js';
 import ErrorNote, { useErrorNote } from '../components/ErrorNote.jsx';
+import { loop, useA11y, useStill } from '../a11y.js';
+import ConfirmCancel from '../components/ConfirmCancel.jsx';
 
 export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, total, donation, setDonation, ...rest }) {
   const [open, setOpen] = useState({});
   const [editing, setEditing] = useState(null);
   const screenRef = useBaseScreen('koszyk');
   const [err, showErr] = useErrorNote();
+  const { vb } = useA11y();
+  const still = useStill();
+  const [removing, setRemoving] = useState(null);
 
   // Zestawy edytujemy w kreatorze, pojedyncze produkty w oknie produktu
   const isMealLine = (line) => line.product.meal || line.config?.asMeal;
@@ -72,8 +77,8 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
                 </AnimatePresence>
               </div>
               <div className="cl-ctrl">
-                <QtyStepper value={line.qty} onChange={(q) => updateQty(line.uid, q)} />
-                <button className="btn-outline xs wide" data-log={`usun_${line.product.id}`} onClick={() => updateQty(line.uid, 0)}>{t('remove')}</button>
+                <QtyStepper value={line.qty} onChange={(q) => updateQty(line.uid, q)} t={t} />
+                <button className="btn-outline xs wide" data-log={`usun_${line.product.id}`} onClick={() => (vb ? setRemoving(line) : updateQty(line.uid, 0))}>{vb && '🗑️ '}{t('remove')}</button>
               </div>
               <div className="cl-price">{formatPrice(line.unitPrice * line.qty)}</div>
             </motion.div>
@@ -83,7 +88,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
 
       <motion.div className="donation" initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25 }}>
         <div className="don-logo">
-          <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ repeat: Infinity, duration: 1.4 }}>❤️</motion.span>
+          <motion.span {...loop(still, { scale: [1, 1.12, 1] }, { duration: 1.4 })}>❤️</motion.span>
           <small>Dom Ronalda McDonalda</small>
         </div>
         <div className="don-body">
@@ -96,6 +101,7 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
                 className={`btn-outline sm ${donation?.id === d.id ? 'active' : ''}`}
                 onClick={() => setDonation(donation?.id === d.id ? null : d)}
               >
+                {vb && donation?.id === d.id && '✓ '}
                 {d.id === 'round' ? d.label : <>{d.label}<br /><b>{formatPrice(d.amount)}</b></>}
               </button>
             ))}
@@ -122,6 +128,21 @@ export default function Cart({ t, go, cart, updateQty, replaceLine, subtotal, to
           <FooterButtons t={t} {...rest} />
         </div>
       </div>
+
+      <AnimatePresence>
+        {removing && (
+          <ConfirmCancel
+            t={t}
+            name="usun"
+            title={t('removeQ')}
+            text={`${t('removeWhat')} „${tr(removing.product.name, rest.lang)}” ${t('removeQSub')}`}
+            yes={t('removeYes')}
+            no={t('removeNo')}
+            onKeep={() => setRemoving(null)}
+            onConfirm={() => { updateQty(removing.uid, 0); setRemoving(null); }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {editing && !editing.meal && (

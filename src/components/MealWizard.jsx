@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   MEAL_UPGRADE, canCustomize, extras, formatPrice, mealDrinkItems, mealSides, mealSizes, products,
@@ -8,6 +8,7 @@ import QtyStepper from './QtyStepper.jsx';
 import CustomizeChips from './CustomizeChips.jsx';
 import { slug, useOverlayScreen } from '../logger.js';
 import ErrorNote, { useErrorNote } from './ErrorNote.jsx';
+import { useA11y } from '../a11y.js';
 
 // Pełnoekranowy kreator zestawu: 1) kanapka (+ personalizacja) → 2) dodatek i rozmiar → 3) napój → 4) podsumowanie.
 // `product` = zestaw z menu (meal: true) albo pojedynczy produkt, z którego robimy zestaw.
@@ -44,6 +45,7 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
   const boxRef = useRef(null);
   const [err, showErr, hideErr] = useErrorNote();
   useOverlayScreen(STEP_SCREENS[step], boxRef, `produkt=${product.id}${editing ? ' edycja=1' : ''}`);
+  const { vb, say } = useA11y();
 
   const basePrice = isSet ? product.price : main.price + MEAL_UPGRADE;
   const extrasPrice = extras.filter((e) => added.includes(e.id)).reduce((s, e) => s + e.price, 0);
@@ -52,6 +54,10 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
   // Nad tytułem jest już etykieta „McZestaw”, więc tu wystarczy nazwa
   const title = tr(isSet ? product.name : main.name, lang);
   const steps = [main.noCustom ? t('stepMainAlt') : t('stepMain'), t('stepSide'), t('stepDrink'), t('stepSummary')];
+  useEffect(() => {
+    const q = [customizable ? t('wantCustomize') : t('mainReady'), t('chooseSide'), t('drink'), t('mealSummary')][step];
+    say(`${t('mealWord')} ${title}. ${t('step')} ${step + 1} ${t('of')} 4: ${steps[step]}. ${q}`);
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
   const canNext = step === STEP_MAIN || (step === STEP_SIDE && side) || (step === STEP_DRINK && drink);
   // Z kroku wyboru wracamy do podsumowania, jeśli klient już raz tam był
   const [seenSummary, setSeenSummary] = useState(editing);
@@ -89,7 +95,7 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
       transition={{ type: 'spring', stiffness: 200, damping: 28 }}
     >
       <header className="wz-head">
-        <button className="wz-close" data-aoi="AOI_wstecz" data-log="zamknij" onClick={onClose} aria-label={t('close')}>✕</button>
+        <button className="wz-close" data-aoi="AOI_wstecz" data-log="zamknij" onClick={onClose} aria-label={t('close')}>✕{vb && <span>{t('close')}</span>}</button>
         <div className="wz-title">
           <span className="wz-title-emoji" style={{ background: main.bg }}>{main.emoji}</span>
           <div>
@@ -209,7 +215,7 @@ export default function MealWizard({ product, initial, prefill, t, lang, onClose
                 </ul>
                 <div className="wz-qty">
                   <span>{t('quantity')}</span>
-                  <QtyStepper value={qty} onChange={setQty} large />
+                  <QtyStepper value={qty} onChange={setQty} large t={t} />
                 </div>
               </>
             )}

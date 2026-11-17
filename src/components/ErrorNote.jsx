@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { logError } from '../logger.js';
+import { useA11y } from '../a11y.js';
 
 // Komunikat o błędzie pokazany uczestnikowi (np. „Wybierz dodatek”). Rejestruje wiersz `blad`,
 // a sam komunikat jest obszarem AOI_blad (wiersz `aoi` przy pojawieniu się, `aoi_znika` po zniknięciu).
@@ -20,6 +21,8 @@ export function useErrorNote(ms = 3500) {
 
 // Wyświetla się nad rodzicem (rodzic musi mieć position: relative), więc nie przesuwa innych AOI
 export default function ErrorNote({ err }) {
+  const { say } = useA11y();
+  useEffect(() => { if (err) say(err.text); }, [err?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="error-wrap">
       <AnimatePresence>

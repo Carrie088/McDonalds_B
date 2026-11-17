@@ -19,6 +19,22 @@ Otwórz http://localhost:5173 (F11 = pełny ekran).
 Po 60 s bezczynności pojawia się okno „Potrzebujesz więcej czasu?”.
 Przycisk „Dostępność” przesuwa interfejs w dół ekranu.
 
+## Wersja A i wersja B
+Wersję wybiera prowadzący w panelu („Badana wersja”). **A** to odtworzenie oryginalnego kiosku (bez zmian).
+**B** to ta sama aplikacja z ulepszeniami dostępności (projektowanie uniwersalne):
+
+- przycisk „♿ Dostępność” otwiera panel od dołu ekranu z niezależnymi opcjami:
+  wysoki kontrast (tekst ≥ 7:1), wielkość napisów (normalna / średnia / duża), bez animacji (zatrzymuje ruch, pulsowanie i automatyczny
+  pokaz slajdów), więcej czasu, ułatwiony zasięg (u góry tylko informacje, wszystkie przyciski w dolnej
+  części ekranu) i asystent głosowy po polsku (Web Speech API, jeśli przeglądarka go ma),
+- w stopce, jak w A, „Zacznij od nowa” i „♿ Dostępność”; przy niepustym zamówieniu „Zacznij od nowa” pyta o potwierdzenie,
+- potwierdzenie przed usunięciem produktu z koszyka („Tak, usuń” / „Nie, zostaw”),
+- 120 s do ostrzeżenia o bezczynności i 30 s na odpowiedź (z opcją „Więcej czasu”: 300 s + 60 s; w A: 60 s + 15 s);
+  „Zacznij od nowa” w ostrzeżeniu też pyta o potwierdzenie,
+- cele dotyku ≥ 44 px (m.in. „✕ Zamknij” 72 px), ciemniejszy tekst pomocniczy i ceny, zaznaczenia ze znakiem ✓.
+
+Wszystkie style wersji B są w `styles.css` pod klasą `.ver-b`; komponenty sprawdzają `useA11y().vb`.
+
 ## Edycja menu
 Produkty, ceny i kategorie: `src/data.js`. Teksty (PL/EN/UK): `src/i18n.js`.
 Obrazki są emoji – możesz je zamienić na zdjęcia (np. `<img>` w `Menu.jsx` / `ProductModal.jsx`).
@@ -37,6 +53,7 @@ Pola można wypełnić z adresu, np. `?interfejs=6&uczestnik=P02&wersja=B&kolejn
 Sterowanie przez prowadzącego (klawiatura):
 - `1`, `2`, `3` – start scenariusza S1/S2/S3 (kiosk wraca na ekran startowy),
 - `0` – przerwanie bieżącego scenariusza (`scenariusz_koniec`, sukces = 0),
+- `T` – natychmiastowe ostrzeżenie o bezczynności (test limitu czasu),
 - `Ctrl` + `Shift` + `A` – powrót do panelu prowadzącego (zapisuje plik).
 
 Bez klawiatury scenariusz startuje pierwszym dotknięciem ekranu startowego (kolejny numer),

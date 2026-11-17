@@ -1,9 +1,16 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { useA11y } from '../a11y.js';
 
-export default function QtyStepper({ value, onChange, min = 1, large = false }) {
+export default function QtyStepper({ value, onChange, min = 1, large = false, t }) {
+  const { vb, say } = useA11y();
+  const label = (key, sign) => (vb && t ? t(key) : sign);
+  const change = (q) => {
+    onChange(q);
+    if (vb && t) say(`${t('quantity')}: ${q}`);
+  };
   return (
     <div className={`qty ${large ? 'qty-lg' : ''}`}>
-      <button className="qty-btn" data-log="ilosc_minus" aria-label="−" disabled={value <= min} onClick={() => onChange(value - 1)}>−</button>
+      <button className="qty-btn" data-log="ilosc_minus" aria-label={label('decrease', '−')} disabled={value <= min} onClick={() => change(value - 1)}>−</button>
       <div className="qty-val">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
@@ -17,7 +24,7 @@ export default function QtyStepper({ value, onChange, min = 1, large = false }) 
           </motion.span>
         </AnimatePresence>
       </div>
-      <button className="qty-btn" data-log="ilosc_plus" aria-label="+" onClick={() => onChange(value + 1)}>+</button>
+      <button className="qty-btn" data-log="ilosc_plus" aria-label={label('increase', '+')} onClick={() => change(value + 1)}>+</button>
     </div>
   );
 }

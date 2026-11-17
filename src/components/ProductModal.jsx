@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MEAL_SAVING, MEAL_UPGRADE, canCustomize, canMakeMeal, extras, formatPrice } from '../data.js';
 import QtyStepper from './QtyStepper.jsx';
 import CustomizeChips from './CustomizeChips.jsx';
 import { tr, lineDetails } from '../menuI18n.js';
 import { useOverlayScreen } from '../logger.js';
+import { loop, useA11y, useStill } from '../a11y.js';
 
 const collapse = {
   initial: { height: 0, opacity: 0 },
@@ -26,11 +27,15 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
   const [added, setAdded] = useState(cfg?.added ?? []);
   const boxRef = useRef(null);
   useOverlayScreen('produkt', boxRef, `produkt=${product.id}${editing ? ' edycja=1' : ''}`);
+  const { vb, say } = useA11y();
+  const still = useStill();
 
   const customizable = canCustomize(product);
   const upsell = canMakeMeal(product) && onMakeMeal;
   const extrasPrice = extras.filter((e) => added.includes(e.id)).reduce((s, e) => s + e.price, 0);
   const unitPrice = product.price + extrasPrice;
+
+  useEffect(() => { say(`${tr(product.name, lang)}, ${formatPrice(unitPrice)}. ${t('helpProduct')}`); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = () => {
     const config = { removed, added };
@@ -48,7 +53,7 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
         exit={{ y: 160, scale: 0.92, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 26 }}
       >
-        <button className="close-x" data-aoi="AOI_wstecz" data-log="zamknij" aria-label={t('close')} onClick={onClose}>✕</button>
+        <button className="close-x" data-aoi="AOI_wstecz" data-log="zamknij" aria-label={t('close')} onClick={onClose}>✕{vb && <span>{t('close')}</span>}</button>
 
         <div className="pm-scroll">
           <motion.div className="pm-image" style={{ background: product.bg }}>
@@ -88,7 +93,7 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
               whileTap={{ scale: 0.97 }}
             >
               <span className="mu-art">
-                <motion.span animate={{ rotate: [-6, 6, -6] }} transition={{ repeat: Infinity, duration: 2.4 }}>🍟</motion.span>
+                <motion.span {...loop(still, { rotate: [-6, 6, -6] }, { duration: 2.4 })}>🍟</motion.span>
                 <span>🥤</span>
               </span>
               <span className="mu-text">
@@ -118,7 +123,7 @@ export default function ProductModal({ product, t, lang, onClose, onAdd, onMakeM
             </>
           )}
 
-          <QtyStepper value={qty} onChange={setQty} large />
+          <QtyStepper value={qty} onChange={setQty} large t={t} />
         </div>
 
         <div className="pm-actions">

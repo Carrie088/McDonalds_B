@@ -4,7 +4,7 @@ const W = 1080;
 const H = 1920;
 
 // Ekran 9:16 projektowany w 1080x1920 i skalowany do okna przeglądarki
-export default function Stage({ children, ...rest }) {
+export default function Stage({ children, className = '', ...rest }) {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -17,7 +17,7 @@ export default function Stage({ children, ...rest }) {
   return (
     <div className="viewport">
       <div className="stage-box" style={{ width: W * scale, height: H * scale }}>
-        <div className="stage" style={{ width: W, height: H, transform: `scale(${scale})` }} {...rest}>
+        <div className={`stage ${className}`.trim()} style={{ width: W, height: H, transform: `scale(${scale})` }} {...rest}>
           {children}
         </div>
       </div>

@@ -3,9 +3,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { formatPrice } from '../data.js';
 import { FooterButtons } from '../components/Footer.jsx';
 import { useBaseScreen } from '../logger.js';
+import { loop, useA11y, useStill } from '../a11y.js';
 
 export default function Payment({ t, go, total, onPaid, ...rest }) {
   const [stage, setStage] = useState('choose'); // choose | tap | processing | ok
+  const { say } = useA11y();
+  const still = useStill();
+  useEffect(() => {
+    if (stage !== 'choose') say({ tap: t('tapCard'), processing: t('processing'), ok: t('paid') }[stage]);
+  }, [stage]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenRef = useBaseScreen({ choose: 'platnosc', tap: 'platnosc_terminal', processing: 'platnosc_przetwarzanie', ok: 'platnosc_zaakceptowana' }[stage]);
 
   // Symulacja terminala płatniczego
@@ -68,10 +74,10 @@ export default function Payment({ t, go, total, onPaid, ...rest }) {
                   transition={{ repeat: Infinity, duration: 2, delay: k * 0.6, ease: 'easeOut' }}
                 />
               ))}
-              <motion.span className="nfc-card" animate={{ y: [0, 30, 0], rotate: [-8, -4, -8] }} transition={{ repeat: Infinity, duration: 2 }}>💳</motion.span>
+              <motion.span className="nfc-card" {...loop(still, { y: [0, 30, 0], rotate: [-8, -4, -8] }, { duration: 2 })}>💳</motion.span>
             </div>
             <h2>{t('tapCard')}</h2>
-            <motion.div className="arrow-down" animate={{ y: [0, 24, 0] }} transition={{ repeat: Infinity, duration: 1.2 }}>⬇</motion.div>
+            <motion.div className="arrow-down" {...loop(still, { y: [0, 24, 0] }, { duration: 1.2 })}>⬇</motion.div>
             <button className="btn-outline lg" data-aoi="AOI_wstecz" data-log="anuluj_platnosc" onClick={() => setStage('choose')}>{t('cancel')}</button>
           </motion.div>
         )}
